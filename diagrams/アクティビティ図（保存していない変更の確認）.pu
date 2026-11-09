@@ -1,0 +1,25 @@
+@startuml FileParseEditor_Activity_ConfirmChanges
+title 保存していない変更の確認（開く・新規作成・終了の前）
+
+start
+if (変更あり？\n（現在の ToText() ≠ 保存済みの内容）) then (いいえ)
+    :元の操作を続ける;
+    stop
+endif
+:M01「変更を保存しますか？」;
+switch (選択)
+case (はい)
+    :上書き保存（基本設計書 6-8）;
+    if (保存できた？) then (はい)
+        :元の操作を続ける;
+    else (キャンセル・失敗)
+        :元の操作を中止する;
+    endif
+case (いいえ)
+    :保存せずに元の操作を続ける;
+case (キャンセル)
+    :元の操作を中止する;
+endswitch
+stop
+
+@enduml

@@ -1,0 +1,47 @@
+@startuml FileParseEditor_Sequence_Save
+title 上書き保存（エラーを含むファイル）
+
+actor 利用者 as User
+participant "MainWindow" as View
+participant "MainViewModel" as VM
+participant "IMessageService" as Msg
+participant "DocumentSession" as Session
+participant "LfcDocument\n(FileParserLib)" as Doc
+
+User -> View : メニュー「上書き保存」
+View -> VM : SaveCommand.Execute()
+activate VM
+
+VM -> Session : FilePath
+Session --> VM : path（開いたファイル）
+
+VM -> Session : NeedsErrorLossConfirmation(path)
+Session --> VM : true
+VM -> Msg : Confirm(M03)
+Msg --> VM : true（はい）
+
+VM -> Session : Save(path)
+activate Session
+Session -> Doc : Save(path)
+alt 保存に成功
+    note right of Doc
+      UTF-8（BOMなし）・LF で書き込む
+    end note
+    Session -> Doc : ToText()
+    Doc --> Session : 保存した内容
+    note right of Session
+      保存済みの内容として記録する。
+      以降、M03 の確認は行わない
+    end note
+    Session --> VM
+    VM -> VM : タイトルを更新（「 *」を外す）
+else 例外（UnauthorizedAccessException 等）
+    Doc --> Session : 例外
+    Session --> VM : 例外（状態は変えない）
+    VM -> Msg : ShowError(M12)
+end
+deactivate Session
+
+deactivate VM
+
+@enduml

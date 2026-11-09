@@ -1,0 +1,180 @@
+@startuml FileParseEditor_ClassDiagram
+skinparam classAttributeIconSize 0
+title FileParseEditor クラス図
+
+package "FileParseEditor（WPF）" {
+    package "Views" {
+        class MainWindow
+        class SectionNameDialog
+        class AddKeyDialog
+    }
+    package "Services " as WpfServices {
+        class FileDialogService
+        class MessageService
+        class InputDialogService
+    }
+    class App
+}
+
+package "FileParseEditor.Core" {
+    package "Mvvm" {
+        abstract class ObservableObject {
+            +PropertyChanged : PropertyChangedEventHandler
+            #SetProperty(field : T, value : T, propertyName : string) : bool
+            #OnPropertyChanged(propertyName : string) : void
+        }
+        class RelayCommand {
+            +RelayCommand(execute : Action, canExecute : Func<bool>)
+            +CanExecute(parameter : object) : bool
+            +Execute(parameter : object) : void
+            +RaiseCanExecuteChanged() : void
+        }
+    }
+
+    package "ViewModels" {
+        class MainViewModel {
+            +Title : string
+            +StatusText : string
+            +Sections : ObservableCollection<SectionListItem>
+            +SelectedSection : SectionListItem
+            +Keys : ObservableCollection<KeyListItem>
+            +SelectedKey : KeyListItem
+            +EditingValueText : string
+            +PreviewText : string
+            +Diagnostics : ObservableCollection<DiagnosticListItem>
+            +NewCommand : ICommand
+            +OpenCommand : ICommand
+            +SaveCommand : ICommand
+            +SaveAsCommand : ICommand
+            +UndoCommand : ICommand
+            +AddSectionCommand : ICommand
+            +RemoveSectionCommand : ICommand
+            +AddKeyCommand : ICommand
+            +RemoveKeyCommand : ICommand
+            +ApplyValueCommand : ICommand
+            --
+            +OpenFile(path : string) : void
+            +ConfirmClose() : bool
+        }
+        class SectionListItem <<record>> {
+            +Name : string
+            +DisplayName : string
+        }
+        class KeyListItem <<record>> {
+            +Key : string
+            +ValueText : string
+            +TypeText : string
+        }
+        class DiagnosticListItem <<record>> {
+            +SeverityText : string
+            +Line : int
+            +Message : string
+        }
+    }
+
+    package "Models" {
+        class DocumentSession {
+            +Document : LfcDocument
+            +FilePath : string
+            +LoadDiagnostics : IReadOnlyList<LfcDiagnostic>
+            +CurrentText : string
+            +IsModified : bool
+            +CanUndo : bool
+            --
+            +Open(path : string) : void
+            +New() : void
+            +Save(path : string) : void
+            +NeedsErrorLossConfirmation(path : string) : bool
+            +SetValue(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
+            +AddKey(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
+            +RemoveKey(section : string, key : string) : void
+            +AddSection(section : string) : void
+            +RemoveSection(section : string) : void
+            +Undo() : void
+        }
+        class EditHistory {
+            +MaxCount : int = 100
+            +CanUndo : bool
+            --
+            +Push(text : string) : void
+            +Pop() : string
+            +Clear() : void
+        }
+        class LfcValueNotation <<static>> {
+            +{static} Format(values : IReadOnlyList<LfcValue>) : string
+            +{static} Parse(text : string) : ValueNotationResult
+        }
+        class ValueNotationResult <<record>> {
+            +Values : IReadOnlyList<LfcValue>
+            +Warnings : IReadOnlyList<string>
+            +ErrorMessage : string
+            +IsSuccess : bool
+            +HasWarnings : bool
+        }
+    }
+
+    package "Services" {
+        interface IFileDialogService {
+            +ShowOpenDialog() : string
+            +ShowSaveDialog(initialPath : string) : string
+        }
+        interface IMessageService {
+            +ShowError(message : string) : void
+            +ShowInformation(message : string) : void
+            +Confirm(message : string) : bool
+            +AskSaveChanges(fileName : string) : SaveChangesChoice
+        }
+        interface IInputDialogService {
+            +AskSectionName(initialName : string) : string
+            +AskNewKey(sectionDisplayName : string, initialInput : NewKeyInput) : NewKeyInput
+        }
+        enum SaveChangesChoice {
+            Save
+            Discard
+            Cancel
+        }
+        class NewKeyInput <<record>> {
+            +Key : string
+            +ValueText : string
+        }
+    }
+}
+
+package "FileParserLib（lib/FileParserLib.dll）" {
+    class LfcDocument
+    class LfcValue <<struct>>
+    class LfcDiagnostic <<record>>
+}
+
+ObservableObject <|-- MainViewModel
+MainViewModel o-- "1" DocumentSession
+MainViewModel o-- "1..*" RelayCommand
+MainViewModel o-- "0..*" SectionListItem
+MainViewModel o-- "0..*" KeyListItem
+MainViewModel o-- "0..*" DiagnosticListItem
+MainViewModel --> "1" IFileDialogService
+MainViewModel --> "1" IMessageService
+MainViewModel --> "1" IInputDialogService
+MainViewModel ..> LfcValueNotation : uses
+
+DocumentSession o-- "1" LfcDocument
+DocumentSession o-- "1" EditHistory
+DocumentSession o-- "0..*" LfcDiagnostic
+DocumentSession ..> LfcValueNotation : uses
+LfcValueNotation ..> LfcDocument : uses
+LfcValueNotation ..> ValueNotationResult : creates
+ValueNotationResult o-- "0..*" LfcValue
+
+IMessageService ..> SaveChangesChoice
+IInputDialogService ..> NewKeyInput
+
+FileDialogService ..|> IFileDialogService
+MessageService ..|> IMessageService
+InputDialogService ..|> IInputDialogService
+InputDialogService ..> SectionNameDialog : shows
+InputDialogService ..> AddKeyDialog : shows
+MainWindow ..> MainViewModel : DataContext
+App ..> MainWindow : creates
+App ..> MainViewModel : creates
+
+@enduml

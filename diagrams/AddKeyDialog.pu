@@ -1,0 +1,11 @@
+@startsalt FileParseEditor_AddKeyDialog
+{+
+  キーの追加
+  .
+  セクション | ~[Profile~]
+  キー名 | "Email               "
+  値 | "~"a@example.com~"     "
+  .
+  [  OK  ] | [キャンセル]
+}
+@endsalt

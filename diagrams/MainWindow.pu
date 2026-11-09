@@ -1,0 +1,45 @@
+@startsalt FileParseEditor_MainWindow
+{+
+  FileParseEditor - sample.lfc *
+  {* ファイル(F) | 編集(E) }
+  {[新規] | [開く] | [保存] | . | [元に戻す] | . | [セクション追加] | [セクション削除] | . | [キー追加] | [キー削除]}
+  {+
+    {
+      <b>セクション一覧
+      {SI
+        （グローバル）
+        ~[Profile~]
+        ~[Section~]
+        .
+        .
+      }
+    } | {
+      <b>キー一覧
+      {#
+        <b>キー | <b>値 | <b>型
+        Name | ~"田代~" | String
+        ID | 1,~"tasiro~",2,~"tasrri~" | Int, String, Int, String
+        Age | 30 | Int
+      }
+      <b>値の編集：Age
+      { "30                    " | [確定] }
+    } | {
+      <b>保存イメージ
+      {SI
+        ~# プロフィール
+        ~[Profile~] ~# セクションの行末コメント
+        Name = ~"田代~"
+        ~# 型の混在
+        ID = 1,~"tasiro~",2,~"tasrri~"
+        Age = 30
+      }
+    }
+  }
+  <b>診断情報
+  {#
+    <b>重大度 | <b>行 | <b>メッセージ
+    警告 | 12 | クォートなしの文字列です: Auto
+  }
+  {C:\data\sample.lfc　セクション 3件　警告 1件　エラー 0件}
+}
+@endsalt

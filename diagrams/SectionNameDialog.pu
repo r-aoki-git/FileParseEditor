@@ -1,0 +1,9 @@
+@startsalt FileParseEditor_SectionNameDialog
+{+
+  セクションの追加
+  .
+  セクション名 | "NewSection          "
+  .
+  [  OK  ] | [キャンセル]
+}
+@endsalt

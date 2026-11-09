@@ -1,0 +1,34 @@
+@startuml FileParseEditor_Sequence_Undo
+title 元に戻す
+
+actor 利用者 as User
+participant "MainWindow" as View
+participant "MainViewModel" as VM
+participant "DocumentSession" as Session
+participant "EditHistory" as History
+participant "LfcDocument\n(FileParserLib)" as Doc
+
+User -> View : メニュー「元に戻す」
+View -> VM : UndoCommand.Execute()
+activate VM
+
+VM -> VM : 選択中のセクション・キーを覚える
+VM -> Session : Undo()
+activate Session
+Session -> History : Pop()
+History --> Session : 変更前のテキスト
+Session -> Doc : Parse(変更前のテキスト, ThrowOnError = false)
+Doc --> Session : 作り直した LfcDocument
+note right of Session
+  現在の文書と置き換える。
+  診断情報はファイルを開いた
+  時点のものを残す
+end note
+Session --> VM
+deactivate Session
+
+VM -> VM : 表示を更新し、覚えたセクション・キーが\nあれば選択し直す
+
+deactivate VM
+
+@enduml

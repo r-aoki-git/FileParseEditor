@@ -1,0 +1,27 @@
+@startuml FileParseEditor_Activity_ParseValue
+title 値の入力の解釈（LfcValueNotation.Parse）
+
+start
+:入力された表記;
+if (改行（CR・LF）を含む？) then (はい)
+    :入力エラー（M07）;
+    stop
+endif
+:LfcDocument.Parse("K = " + 入力, ThrowOnError = false);
+if (診断情報に Error がある？) then (はい)
+    :入力エラー（M06）;
+    stop
+endif
+:解釈した値を取り出す;
+if (文書の ToText() と、値だけを書き出した結果が異なる？) then (はい)
+    :入力エラー（M08）\nクォートの外の # がコメントとして扱われた;
+    stop
+endif
+if (診断情報に Warning がある？) then (はい)
+    :警告付きで成功\n（値と Warning のメッセージを返す）;
+else (いいえ)
+    :成功（値を返す）;
+endif
+stop
+
+@enduml

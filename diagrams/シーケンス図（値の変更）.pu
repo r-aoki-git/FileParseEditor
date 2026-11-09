@@ -1,0 +1,50 @@
+@startuml FileParseEditor_Sequence_ApplyValue
+title 値の変更
+
+actor 利用者 as User
+participant "MainWindow" as View
+participant "MainViewModel" as VM
+participant "LfcValueNotation" as Notation
+participant "IMessageService" as Msg
+participant "DocumentSession" as Session
+participant "EditHistory" as History
+participant "LfcDocument\n(FileParserLib)" as Doc
+
+User -> View : 値を入力して「確定」
+View -> VM : ApplyValueCommand.Execute()
+activate VM
+
+VM -> Notation : Parse(EditingValueText)
+activate Notation
+Notation -> Doc : Parse("K = " + 入力, ThrowOnError = false)
+Doc --> Notation : 作業用の文書（Diagnostics を含む）
+note right of Notation
+  改行・Error・コメントを検査し、
+  値と Warning を取り出す（5-2）
+end note
+Notation --> VM : ValueNotationResult
+deactivate Notation
+
+alt 入力エラー
+    VM -> Msg : ShowError(M06〜M08)
+else 成功・警告付き
+    opt 警告付き
+        VM -> Msg : Confirm(M05)
+        Msg --> VM : true（はい。「いいえ」なら終了）
+    end
+    VM -> Session : SetValue(section, key, values)
+    activate Session
+    Session -> Doc : ToText()
+    Doc --> Session : 変更前のテキスト
+    Session -> History : Push(変更前のテキスト)
+    Session -> Doc : Set(section, key, values)
+    Session -> Doc : ToText()
+    Doc --> Session : 変更後のテキスト
+    Session --> VM
+    deactivate Session
+    VM -> VM : キー一覧・保存イメージ・タイトルを更新
+end
+
+deactivate VM
+
+@enduml
