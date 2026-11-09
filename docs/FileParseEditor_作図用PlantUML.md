@@ -177,7 +177,8 @@ package "FileParseEditor.Core" {
             +RemoveKeyCommand : ICommand
             +ApplyValueCommand : ICommand
             --
-            +OpenFile(path : string) : void
+            +OpenDroppedFiles(paths : IReadOnlyList<string>) : void
+            +ReportUnexpectedError(exception : Exception) : void
             +ConfirmClose() : bool
         }
         class SectionListItem <<record>> {
@@ -193,6 +194,12 @@ package "FileParseEditor.Core" {
             +SeverityText : string
             +Line : int
             +Message : string
+        }
+        class MessageTexts <<static>> {
+            ~{static} DropOneFileOnly : string
+            ~{static} FileHasErrors(errorCount : int) : string
+            ~{static} OpenFailed(path : string, detail : string) : string
+            ~{static} UnexpectedError(detail : string) : string
         }
     }
 
@@ -280,6 +287,7 @@ MainViewModel --> "1" IFileDialogService
 MainViewModel --> "1" IMessageService
 MainViewModel --> "1" IInputDialogService
 MainViewModel ..> LfcValueNotation : uses
+MainViewModel ..> MessageTexts : uses
 
 DocumentSession o-- "1" LfcDocument
 DocumentSession o-- "1" EditHistory
