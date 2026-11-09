@@ -1,12 +1,116 @@
-﻿<Window x:Class="FileParseEditor.MainWindow"
+<Window x:Class="FileParseEditor.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:FileParseEditor"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="{Binding Title}"
+        Width="1100" Height="700"
+        AllowDrop="True"
+        PreviewDragOver="OnPreviewDragOver"
+        PreviewDrop="OnPreviewDrop">
 
-    </Grid>
+    <Window.InputBindings>
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewCommand}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenCommand}" />
+    </Window.InputBindings>
+
+    <!-- 上からメニュー、ツールバー、作業領域、診断情報、ステータスバーの順に並べる（基本設計書 3-2） -->
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="ファイル(_F)">
+                <MenuItem Header="新規作成(_N)" InputGestureText="Ctrl+N" Command="{Binding NewCommand}" />
+                <MenuItem Header="開く(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenCommand}" />
+                <Separator />
+                <MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="OnExitClick" />
+            </MenuItem>
+        </Menu>
+
+        <ToolBarTray DockPanel.Dock="Top">
+            <ToolBar>
+                <Button Content="新規" Command="{Binding NewCommand}" ToolTip="新規作成 (Ctrl+N)" />
+                <Button Content="開く" Command="{Binding OpenCommand}" ToolTip="開く (Ctrl+O)" />
+            </ToolBar>
+        </ToolBarTray>
+
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusText}" />
+            </StatusBarItem>
+        </StatusBar>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="140" />
+            </Grid.RowDefinitions>
+
+            <!-- 作業領域：左からセクション一覧、キー一覧、保存イメージ -->
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="200" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0" Margin="4">
+                    <TextBlock DockPanel.Dock="Top" Text="セクション一覧" FontWeight="Bold" Margin="0,0,0,2" />
+                    <ListBox ItemsSource="{Binding Sections}"
+                             SelectedItem="{Binding SelectedSection}"
+                             DisplayMemberPath="DisplayName" />
+                </DockPanel>
+
+                <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch" />
+
+                <DockPanel Grid.Column="2" Margin="4">
+                    <TextBlock DockPanel.Dock="Top" Text="キー一覧" FontWeight="Bold" Margin="0,0,0,2" />
+                    <DataGrid ItemsSource="{Binding Keys}"
+                              SelectedItem="{Binding SelectedKey}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserSortColumns="False"
+                              HeadersVisibility="Column">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="キー" Binding="{Binding Key}" Width="Auto" MinWidth="80" />
+                            <DataGridTextColumn Header="値" Binding="{Binding ValueText}" Width="*" />
+                            <DataGridTextColumn Header="型" Binding="{Binding TypeText}" Width="Auto" MinWidth="60" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+
+                <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch" />
+
+                <DockPanel Grid.Column="4" Margin="4">
+                    <TextBlock DockPanel.Dock="Top" Text="保存イメージ" FontWeight="Bold" Margin="0,0,0,2" />
+                    <TextBox Text="{Binding PreviewText, Mode=OneWay}"
+                             IsReadOnly="True"
+                             FontFamily="Consolas, MS Gothic"
+                             TextWrapping="NoWrap"
+                             VerticalScrollBarVisibility="Auto"
+                             HorizontalScrollBarVisibility="Auto" />
+                </DockPanel>
+            </Grid>
+
+            <GridSplitter Grid.Row="1" Height="5" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+
+            <DockPanel Grid.Row="2" Margin="4">
+                <TextBlock DockPanel.Dock="Top" Text="診断情報" FontWeight="Bold" Margin="0,0,0,2" />
+                <DataGrid ItemsSource="{Binding Diagnostics}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          HeadersVisibility="Column">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="重大度" Binding="{Binding SeverityText}" Width="Auto" MinWidth="60" />
+                        <DataGridTextColumn Header="行" Binding="{Binding Line}" Width="Auto" MinWidth="40" />
+                        <DataGridTextColumn Header="メッセージ" Binding="{Binding Message}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
 </Window>
