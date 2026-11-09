@@ -1,9 +1,13 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.37216.2 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileParseEditor", "FileParseEditor\FileParseEditor.csproj", "{4B347486-4228-4DA9-8722-4082E8F90605}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileParseEditor.Core", "FileParseEditor.Core\FileParseEditor.Core.csproj", "{0222A8EE-47CA-4AA7-B1FD-F9FD40084081}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FileParseEditor.Tests", "FileParseEditor.Tests\FileParseEditor.Tests.csproj", "{96DCBABC-E7E4-4ADE-AD3B-954A36524696}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +19,14 @@ Global
 		{4B347486-4228-4DA9-8722-4082E8F90605}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B347486-4228-4DA9-8722-4082E8F90605}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4B347486-4228-4DA9-8722-4082E8F90605}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0222A8EE-47CA-4AA7-B1FD-F9FD40084081}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0222A8EE-47CA-4AA7-B1FD-F9FD40084081}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0222A8EE-47CA-4AA7-B1FD-F9FD40084081}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0222A8EE-47CA-4AA7-B1FD-F9FD40084081}.Release|Any CPU.Build.0 = Release|Any CPU
+		{96DCBABC-E7E4-4ADE-AD3B-954A36524696}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{96DCBABC-E7E4-4ADE-AD3B-954A36524696}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{96DCBABC-E7E4-4ADE-AD3B-954A36524696}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{96DCBABC-E7E4-4ADE-AD3B-954A36524696}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
