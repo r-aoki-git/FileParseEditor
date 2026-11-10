@@ -1,0 +1,8 @@
+# 改行コードを LF に統一する（.editorconfig の end_of_line = lf と合わせる）。
+# Windows の Git（core.autocrlf = true）で取得しても CRLF に変換されないようにする。
+* text=auto eol=lf
+
+# バイナリファイルは変換しない
+*.dll binary
+*.png binary
+*.ico binary

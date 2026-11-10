@@ -362,6 +362,7 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | | `SectionListItem` | クラス（record） | セクション一覧の1行（セクション名、表示名） |
 | | `KeyListItem` | クラス（record） | キー一覧の1行（キー名、値の表記、型） |
 | | `DiagnosticListItem` | クラス（record） | 診断情報一覧の1行（重大度の表示名、行、メッセージ） |
+| | `MessageTexts` | 静的クラス（internal） | メッセージの文言（10章）。画面とテストで同じ文言を使う |
 | `FileParseEditor.Core.Services` | `IFileDialogService` | インターフェイス | ファイルを開く・保存するダイアログ |
 | | `IMessageService` | インターフェイス | 確認・エラーのメッセージ |
 | | `IInputDialogService` | インターフェイス | セクションの追加・キーの追加ダイアログ |
@@ -434,7 +435,8 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `string PreviewText { get; }` | 保存イメージ |
 | `ObservableCollection<DiagnosticListItem> Diagnostics` | 診断情報一覧 |
 | `NewCommand`、`OpenCommand`、`SaveCommand`、`SaveAsCommand`、`UndoCommand`、`AddSectionCommand`、`RemoveSectionCommand`、`AddKeyCommand`、`RemoveKeyCommand`、`ApplyValueCommand` | 3-3 の各操作（`ICommand`） |
-| `void OpenFile(string path)` | ドラッグ＆ドロップで開く（6-1 の 1・3〜5） |
+| `void OpenDroppedFiles(IReadOnlyList<string> paths)` | ドラッグ＆ドロップで開く（6-1）。ファイル1つの場合だけ開き、それ以外は M13 を表示する |
+| `void ReportUnexpectedError(Exception exception)` | 想定外の例外を M14 で知らせる（9章）。`App`の`DispatcherUnhandledException`から呼び出す |
 | `bool ConfirmClose()` | 終了してよいか（6-10）。`MainWindow`の`Closing`から呼び出す |
 
 **`IFileDialogService`／`IMessageService`／`IInputDialogService`**
@@ -508,7 +510,7 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | 保存 | `LfcDocument.Save`の例外（同上） | M12 を表示する。文書と「変更あり」の状態は変えない |
 | 編集 | `Set`・`AddSection`の`ArgumentException`（LFCとして書き出せない名前） | M10 を表示する。ライブラリは例外を送出した場合に文書を変更しないため、記録した履歴だけを取り消す |
 | 値の入力 | 5-2 の入力エラー | M06〜M08 を表示する。文書は変更しない |
-| 全体 | 上記以外の想定外の例外 | `App`の`DispatcherUnhandledException`で受け止め、M14 を表示してアプリを続行する（非機能要件No.6） |
+| 全体 | 上記以外の想定外の例外 | `App`の`DispatcherUnhandledException`で受け止め、`MainViewModel.ReportUnexpectedError`で M14 を表示してアプリを続行する（非機能要件No.6） |
 
 - ライブラリの例外のメッセージ（`Exception.Message`）は、メッセージの「詳細」として表示する
 - `DocumentSession`は例外を受け止めずに呼び出し元（`MainViewModel`）へ伝え、メッセージの表示は`MainViewModel`が行う（画面に依存しない処理にメッセージの表示を持ち込まないため）

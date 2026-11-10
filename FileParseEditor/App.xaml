@@ -1,9 +1,9 @@
-﻿<Application x:Class="FileParseEditor.App"
+<Application x:Class="FileParseEditor.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:FileParseEditor"
-             StartupUri="MainWindow.xaml">
+             DispatcherUnhandledException="OnDispatcherUnhandledException">
+    <!-- メイン画面は ViewModel を組み立ててから表示するため、StartupUri は使わない（App.xaml.cs の OnStartup） -->
     <Application.Resources>
-         
+
     </Application.Resources>
 </Application>

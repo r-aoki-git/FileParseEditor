@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- 画面に依存しない処理（ViewModel・文書の管理・値の表記の変換）。
+       WPF の型を使えないよう、net8.0（Windows 以外でも動く対象フレームワーク）とする（基本設計書 7-1） -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- FileParserLib はビルドした DLL を参照する（基本設計書 7-2、lib/README.md） -->
+  <ItemGroup>
+    <Reference Include="FileParserLib">
+      <HintPath>..\lib\FileParserLib.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- internal のメッセージ文言などを単体テストから参照するため -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="FileParseEditor.Tests" />
+  </ItemGroup>
+
+</Project>
