@@ -4,7 +4,7 @@ using FileParserLib;
 namespace FileParseEditor.Tests.Models;
 
 /// <summary>LfcValueNotation：値 → 表記（Format）のテスト（基本設計書 5-1）。</summary>
-public class LfcValueNotationTests
+public class LfcValueNotationFormatTests
 {
     public static TheoryData<LfcValue[], string> FormatCases => new()
     {
