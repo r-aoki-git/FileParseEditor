@@ -164,6 +164,7 @@ package "FileParseEditor.Core" {
             +Keys : ObservableCollection<KeyListItem>
             +SelectedKey : KeyListItem
             +EditingValueText : string
+            +IsKeySelected : bool
             +PreviewText : string
             +Diagnostics : ObservableCollection<DiagnosticListItem>
             +NewCommand : ICommand
@@ -195,6 +196,9 @@ package "FileParseEditor.Core" {
             +Line : int
             +Message : string
         }
+        class ValueInputChecker {
+            ~Accept(result : ValueNotationResult) : bool
+        }
         class MessageTexts <<static>> {
             ~{static} DropOneFileOnly : string
             ~{static} FileHasErrors(errorCount : int) : string
@@ -212,15 +216,17 @@ package "FileParseEditor.Core" {
             +IsModified : bool
             +CanUndo : bool
             --
+            +SectionExists(section : string) : bool
+            +KeyExists(section : string, key : string) : bool
             +Open(path : string) : void
             +New() : void
             +Save(path : string) : void
             +NeedsErrorLossConfirmation(path : string) : bool
             +SetValue(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
             +AddKey(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
-            +RemoveKey(section : string, key : string) : void
-            +AddSection(section : string) : void
-            +RemoveSection(section : string) : void
+            +RemoveKey(section : string, key : string) : bool
+            +AddSection(section : string) : bool
+            +RemoveSection(section : string) : bool
             +Undo() : void
         }
         class EditHistory {
@@ -238,9 +244,16 @@ package "FileParseEditor.Core" {
         class ValueNotationResult <<record>> {
             +Values : IReadOnlyList<LfcValue>
             +Warnings : IReadOnlyList<string>
-            +ErrorMessage : string
+            +Error : ValueNotationError
+            +ErrorDetail : string
             +IsSuccess : bool
             +HasWarnings : bool
+        }
+        enum ValueNotationError {
+            None
+            LineBreak
+            Syntax
+            Comment
         }
     }
 
@@ -287,6 +300,9 @@ MainViewModel --> "1" IFileDialogService
 MainViewModel --> "1" IMessageService
 MainViewModel --> "1" IInputDialogService
 MainViewModel ..> LfcValueNotation : uses
+MainViewModel o-- "1" ValueInputChecker
+ValueInputChecker --> "1" IMessageService
+ValueInputChecker ..> ValueNotationResult : checks
 MainViewModel ..> MessageTexts : uses
 
 DocumentSession o-- "1" LfcDocument
@@ -296,6 +312,7 @@ DocumentSession ..> LfcValueNotation : uses
 LfcValueNotation ..> LfcDocument : uses
 LfcValueNotation ..> ValueNotationResult : creates
 ValueNotationResult o-- "0..*" LfcValue
+ValueNotationResult --> "1" ValueNotationError
 
 IMessageService ..> SaveChangesChoice
 IInputDialogService ..> NewKeyInput
