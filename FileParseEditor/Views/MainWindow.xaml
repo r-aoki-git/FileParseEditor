@@ -10,6 +10,8 @@
     <Window.InputBindings>
         <KeyBinding Gesture="Ctrl+N" Command="{Binding NewCommand}" />
         <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenCommand}" />
+        <!-- 値の編集欄などの TextBox にフォーカスがある間は、TextBox の入力の取り消しとして働く（基本設計書 3-3） -->
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
     </Window.InputBindings>
 
     <!-- 上からメニュー、ツールバー、作業領域、診断情報、ステータスバーの順に並べる（基本設計書 3-2） -->
@@ -21,12 +23,29 @@
                 <Separator />
                 <MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="OnExitClick" />
             </MenuItem>
+            <MenuItem Header="編集(_E)">
+                <MenuItem Header="元に戻す(_U)" InputGestureText="Ctrl+Z" Command="{Binding UndoCommand}" />
+                <Separator />
+                <MenuItem Header="セクションの追加(_A)..." Command="{Binding AddSectionCommand}" />
+                <MenuItem Header="セクションの削除(_R)" Command="{Binding RemoveSectionCommand}" />
+                <Separator />
+                <MenuItem Header="キーの追加(_K)..." Command="{Binding AddKeyCommand}" />
+                <MenuItem Header="キーの削除(_D)" InputGestureText="Delete" Command="{Binding RemoveKeyCommand}" />
+            </MenuItem>
         </Menu>
 
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
                 <Button Content="新規" Command="{Binding NewCommand}" ToolTip="新規作成 (Ctrl+N)" />
                 <Button Content="開く" Command="{Binding OpenCommand}" ToolTip="開く (Ctrl+O)" />
+                <Separator />
+                <Button Content="元に戻す" Command="{Binding UndoCommand}" ToolTip="元に戻す (Ctrl+Z)" />
+                <Separator />
+                <Button Content="セクション追加" Command="{Binding AddSectionCommand}" ToolTip="セクションの追加" />
+                <Button Content="セクション削除" Command="{Binding RemoveSectionCommand}" ToolTip="セクションの削除" />
+                <Separator />
+                <Button Content="キー追加" Command="{Binding AddKeyCommand}" ToolTip="キーの追加" />
+                <Button Content="キー削除" Command="{Binding RemoveKeyCommand}" ToolTip="キーの削除 (Delete)" />
             </ToolBar>
         </ToolBarTray>
 
@@ -64,6 +83,22 @@
 
                 <DockPanel Grid.Column="2" Margin="4">
                     <TextBlock DockPanel.Dock="Top" Text="キー一覧" FontWeight="Bold" Margin="0,0,0,2" />
+
+                    <!-- 値の編集欄（基本設計書 3-4-3）。Enter キーまたは「確定」で値を変更する -->
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0" IsEnabled="{Binding IsKeySelected}">
+                        <TextBlock DockPanel.Dock="Top" FontWeight="Bold" Margin="0,0,0,2">
+                            <Run Text="値の編集：" /><Run Text="{Binding SelectedKey.Key, Mode=OneWay}" />
+                        </TextBlock>
+                        <Button DockPanel.Dock="Right" Content="確定" Width="60" Margin="4,0,0,0"
+                                Command="{Binding ApplyValueCommand}" />
+                        <TextBox Text="{Binding EditingValueText, UpdateSourceTrigger=PropertyChanged}"
+                                 FontFamily="Consolas, MS Gothic">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter" Command="{Binding ApplyValueCommand}" />
+                            </TextBox.InputBindings>
+                        </TextBox>
+                    </DockPanel>
+
                     <DataGrid ItemsSource="{Binding Keys}"
                               SelectedItem="{Binding SelectedKey}"
                               AutoGenerateColumns="False"
@@ -73,6 +108,9 @@
                               CanUserDeleteRows="False"
                               CanUserSortColumns="False"
                               HeadersVisibility="Column">
+                        <DataGrid.InputBindings>
+                            <KeyBinding Key="Delete" Command="{Binding RemoveKeyCommand}" />
+                        </DataGrid.InputBindings>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="キー" Binding="{Binding Key}" Width="Auto" MinWidth="80" />
                             <DataGridTextColumn Header="値" Binding="{Binding ValueText}" Width="*" />

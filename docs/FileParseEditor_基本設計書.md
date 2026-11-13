@@ -357,12 +357,14 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `FileParseEditor.Core.Models` | `DocumentSession` | クラス | 編集中の文書（`LfcDocument`）、ファイルのパス、診断情報、保存済みの内容、元に戻す履歴をまとめて管理し、6章の操作を行う |
 | | `EditHistory` | クラス | 元に戻す履歴（`ToText()`の結果）を最大100件保持する |
 | | `LfcValueNotation` | 静的クラス | 値と表記の変換（5章） |
-| | `ValueNotationResult` | クラス（record） | 表記の解釈結果（成功／警告付き／入力エラー、値、メッセージ） |
+| | `ValueNotationResult` | クラス（record） | 表記の解釈結果（値、Warning のメッセージ、解釈できなかった理由とその詳細） |
+| | `ValueNotationError` | 列挙体 | 表記を解釈できなかった理由（None／LineBreak／Syntax／Comment。5-2 の 1〜3）。利用者に見せる文言は ViewModel が決める |
 | `FileParseEditor.Core.ViewModels` | `MainViewModel` | クラス | メイン画面の表示内容とコマンド |
 | | `SectionListItem` | クラス（record） | セクション一覧の1行（セクション名、表示名） |
 | | `KeyListItem` | クラス（record） | キー一覧の1行（キー名、値の表記、型） |
 | | `DiagnosticListItem` | クラス（record） | 診断情報一覧の1行（重大度の表示名、行、メッセージ） |
 | | `MessageTexts` | 静的クラス（internal） | メッセージの文言（10章）。画面とテストで同じ文言を使う |
+| | `ValueInputChecker` | クラス（internal） | 表記の解釈結果を利用者に示す（入力エラーはメッセージ、警告付きは確認。6-3 の 2・3、6-4 の 3）。値の変更とキーの追加で同じ流れを使うため、`MainViewModel`から分けている |
 | `FileParseEditor.Core.Services` | `IFileDialogService` | インターフェイス | ファイルを開く・保存するダイアログ |
 | | `IMessageService` | インターフェイス | 確認・エラーのメッセージ |
 | | `IInputDialogService` | インターフェイス | セクションの追加・キーの追加ダイアログ |
@@ -416,12 +418,13 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `string CurrentText { get; }` | 現在の`ToText()`の結果（保存イメージ・「変更あり」の判定に使う） |
 | `bool IsModified { get; }` | 保存していない変更があるか（6-11） |
 | `bool CanUndo { get; }` | 元に戻せる履歴があるか |
+| `bool SectionExists(string section)`／`bool KeyExists(string section, string key)` | セクション・キーが文書に存在するか（追加前の重複の確認、コマンドの実行できる条件に使う） |
 | `void Open(string path)` | 6-1 の 3・4 |
 | `void New()` | 6-2 の 2 |
 | `void Save(string path)` | 6-8 の 3・4 |
-| `void SetValue(string section, string key, IReadOnlyList<LfcValue> values)` | 履歴を記録して値を設定する |
+| `void SetValue(string section, string key, IReadOnlyList<LfcValue> values)` | 履歴を記録して、既存のキーの値を置き換える。キーがなければ例外（ライブラリの`Set`のように追加しない） |
 | `void AddKey(string section, string key, IReadOnlyList<LfcValue> values)` | 既存のキーがあれば例外。履歴を記録して追加する |
-| `void RemoveKey(string section, string key)`／`void AddSection(string section)`／`void RemoveSection(string section)` | 履歴を記録して各操作を行う |
+| `bool RemoveKey(string section, string key)`／`bool AddSection(string section)`／`bool RemoveSection(string section)` | 履歴を記録して各操作を行う。対象がない（追加の場合は既にある）ため何もしなかった場合は`false`を返し、履歴も記録しない |
 | `void Undo()` | 6-9 |
 
 **`MainViewModel`**
@@ -431,7 +434,7 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `string Title { get; }`／`string StatusText { get; }` | タイトルバー・ステータスバーの表示 |
 | `ObservableCollection<SectionListItem> Sections`、`SectionListItem? SelectedSection` | セクション一覧と選択 |
 | `ObservableCollection<KeyListItem> Keys`、`KeyListItem? SelectedKey` | キー一覧と選択 |
-| `string EditingValueText` | 値の編集欄の入力 |
+| `string EditingValueText`、`bool IsKeySelected { get; }` | 値の編集欄の入力と、入力できるか（キーを選択しているか） |
 | `string PreviewText { get; }` | 保存イメージ |
 | `ObservableCollection<DiagnosticListItem> Diagnostics` | 診断情報一覧 |
 | `NewCommand`、`OpenCommand`、`SaveCommand`、`SaveAsCommand`、`UndoCommand`、`AddSectionCommand`、`RemoveSectionCommand`、`AddKeyCommand`、`RemoveKeyCommand`、`ApplyValueCommand` | 3-3 の各操作（`ICommand`） |
@@ -512,7 +515,8 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | 値の入力 | 5-2 の入力エラー | M06〜M08 を表示する。文書は変更しない |
 | 全体 | 上記以外の想定外の例外 | `App`の`DispatcherUnhandledException`で受け止め、`MainViewModel.ReportUnexpectedError`で M14 を表示してアプリを続行する（非機能要件No.6） |
 
-- ライブラリの例外のメッセージ（`Exception.Message`）は、メッセージの「詳細」として表示する
+- ライブラリの例外のメッセージ（`Exception.Message`）は、メッセージの「詳細」として表示する。ただし、`ArgumentException`のメッセージの末尾に .NET が付ける「 (Parameter 'xxx')」は、利用者には意味がないため取り除く
+- 操作が例外で失敗した場合は、記録した元に戻す履歴も取り消す（失敗した操作を「元に戻す」の対象にしない）
 - `DocumentSession`は例外を受け止めずに呼び出し元（`MainViewModel`）へ伝え、メッセージの表示は`MainViewModel`が行う（画面に依存しない処理にメッセージの表示を持ち込まないため）
 
 ---

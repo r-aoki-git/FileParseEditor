@@ -17,7 +17,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
-        _mainViewModel = new MainViewModel(new FileDialogService(), new MessageService());
+        _mainViewModel = new MainViewModel(new FileDialogService(), new MessageService(), new InputDialogService());
         var window = new MainWindow { DataContext = _mainViewModel };
         MainWindow = window;
         window.Show();

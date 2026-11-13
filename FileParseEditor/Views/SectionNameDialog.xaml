@@ -1,0 +1,29 @@
+<Window x:Class="FileParseEditor.Views.SectionNameDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="セクションの追加"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        FocusManager.FocusedElement="{Binding ElementName=NameBox}">
+    <!-- 基本設計書 3-5-1 -->
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="260" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Grid.Column="0" Text="セクション名" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <TextBox x:Name="NameBox" Grid.Row="0" Grid.Column="1" />
+
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="OK" Width="80" IsDefault="True" Click="OnOkClick" />
+            <Button Content="キャンセル" Width="80" Margin="8,0,0,0" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

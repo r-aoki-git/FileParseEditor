@@ -10,4 +10,8 @@ public interface IMessageService
 
     /// <summary>情報のメッセージを表示する。</summary>
     void ShowInformation(string message);
+
+    /// <summary>はい／いいえで確認する。</summary>
+    /// <returns>「はい」が選ばれた場合は true。</returns>
+    bool Confirm(string message);
 }
