@@ -23,14 +23,15 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void OnPreviewDrop(object sender, DragEventArgs e)
+    // イベントハンドラーは戻り値を返せないため async void とする。読み込み中も画面は止まらない
+    private async void OnPreviewDrop(object sender, DragEventArgs e)
     {
+        e.Handled = true;
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
         {
-            ViewModel.OpenDroppedFiles(paths);
+            await ViewModel.OpenDroppedFilesAsync(paths);
         }
-        e.Handled = true;
     }
 
-    private void OnExitClick(object sender, RoutedEventArgs e) => Close();
+    private void OnExitMenuItemClick(object sender, RoutedEventArgs e) => Close();
 }

@@ -52,7 +52,7 @@ internal static class MessageTexts
     /// 例外のメッセージを、メッセージの「詳細」として表示する形にする。
     /// <see cref="ArgumentException"/> のメッセージの末尾に .NET が付ける「 (Parameter 'xxx')」は、利用者には意味がないため取り除く。
     /// </summary>
-    internal static string DetailOf(Exception exception)
+    internal static string ExceptionDetail(Exception exception)
     {
         var message = exception.Message;
         if (exception is ArgumentException { ParamName: { } paramName })

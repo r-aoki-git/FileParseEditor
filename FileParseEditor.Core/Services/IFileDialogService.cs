@@ -7,5 +7,5 @@ public interface IFileDialogService
 {
     /// <summary>ファイルを開くダイアログを表示する。</summary>
     /// <returns>選択されたファイルのパス。キャンセルされた場合は null。</returns>
-    string? ShowOpenDialog();
+    string? ShowOpenFileDialog();
 }

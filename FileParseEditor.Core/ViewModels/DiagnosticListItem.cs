@@ -14,7 +14,7 @@ public sealed record DiagnosticListItem(string SeverityText, int Line, string Me
     internal const string ErrorText = "エラー";
 
     /// <summary>ライブラリの診断情報から一覧の1行を作る。</summary>
-    public static DiagnosticListItem From(LfcDiagnostic diagnostic)
+    internal static DiagnosticListItem ForDiagnostic(LfcDiagnostic diagnostic)
     {
         ArgumentNullException.ThrowIfNull(diagnostic);
         var severityText = diagnostic.Severity == LfcDiagnosticSeverity.Error ? ErrorText : WarningText;

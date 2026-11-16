@@ -10,16 +10,14 @@ public sealed class MessageService : IMessageService
 {
     private const string Caption = "FileParseEditor";
 
-    public void ShowError(string message) => Show(message, MessageBoxImage.Error);
+    public void ShowError(string message) => ShowMessageBox(message, MessageBoxButton.OK, MessageBoxImage.Error);
 
-    public void ShowInformation(string message) => Show(message, MessageBoxButton.OK, MessageBoxImage.Information);
+    public void ShowInformation(string message) => ShowMessageBox(message, MessageBoxButton.OK, MessageBoxImage.Information);
 
-    public bool Confirm(string message) =>
-        Show(message, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+    public bool ConfirmYesNo(string message) =>
+        ShowMessageBox(message, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
 
-    private static void Show(string message, MessageBoxImage image) => Show(message, MessageBoxButton.OK, image);
-
-    private static MessageBoxResult Show(string message, MessageBoxButton button, MessageBoxImage image)
+    private static MessageBoxResult ShowMessageBox(string message, MessageBoxButton button, MessageBoxImage image)
     {
         var owner = Application.Current?.MainWindow;
         return owner is null

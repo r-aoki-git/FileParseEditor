@@ -17,5 +17,5 @@ public partial class SectionNameDialog : Window
     /// <summary>入力されたセクション名。</summary>
     public string SectionName => NameBox.Text;
 
-    private void OnOkClick(object sender, RoutedEventArgs e) => DialogResult = true;
+    private void OnOkButtonClick(object sender, RoutedEventArgs e) => DialogResult = true;
 }

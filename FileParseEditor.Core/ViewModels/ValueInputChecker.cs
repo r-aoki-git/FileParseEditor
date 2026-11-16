@@ -21,7 +21,7 @@ internal sealed class ValueInputChecker
     /// 入力エラーの場合はメッセージを表示して false を返す。警告付きの場合は解釈した結果を示して確認し、
     /// 「はい」なら true を返す。それ以外は true を返す。
     /// </summary>
-    internal bool Accept(ValueNotationResult result)
+    internal bool ConfirmValueInput(ValueNotationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
 
@@ -46,7 +46,7 @@ internal sealed class ValueInputChecker
         }
 
         // 確定した値は保存時に正規化されるため、正規化後の表記を「解釈した結果」として示す（基本設計書 5-2）
-        var interpreted = LfcValueNotation.Format(result.Values);
-        return _messageService.Confirm(MessageTexts.ConfirmValueWarnings(result.Warnings, interpreted));
+        var interpreted = LfcValueNotation.ToNotation(result.Values);
+        return _messageService.ConfirmYesNo(MessageTexts.ConfirmValueWarnings(result.Warnings, interpreted));
     }
 }

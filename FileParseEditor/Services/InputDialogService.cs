@@ -9,7 +9,7 @@ namespace FileParseEditor.Services;
 /// </summary>
 public sealed class InputDialogService : IInputDialogService
 {
-    public string? AskSectionName(string initialName)
+    public string? AskNewSectionName(string initialName)
     {
         var dialog = new SectionNameDialog(initialName) { Owner = Application.Current?.MainWindow };
         return dialog.ShowDialog() == true ? dialog.SectionName : null;

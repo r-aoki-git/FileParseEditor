@@ -34,7 +34,7 @@
                    Text="LFC の表記で入力します（例：1,&quot;tasiro&quot;,2）。空欄は値なしになります。" />
 
         <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="OK" Width="80" IsDefault="True" Click="OnOkClick" />
+            <Button Content="OK" Width="80" IsDefault="True" Click="OnOkButtonClick" />
             <Button Content="キャンセル" Width="80" Margin="8,0,0,0" IsCancel="True" />
         </StackPanel>
     </Grid>

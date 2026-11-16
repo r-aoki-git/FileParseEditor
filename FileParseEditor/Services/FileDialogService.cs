@@ -10,7 +10,7 @@ public sealed class FileDialogService : IFileDialogService
 {
     private const string Filter = "LFCファイル (*.lfc)|*.lfc|すべてのファイル (*.*)|*.*";
 
-    public string? ShowOpenDialog()
+    public string? ShowOpenFileDialog()
     {
         var dialog = new OpenFileDialog
         {
