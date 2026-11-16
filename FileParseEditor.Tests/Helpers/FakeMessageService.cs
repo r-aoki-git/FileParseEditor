@@ -21,7 +21,7 @@ internal sealed class FakeMessageService : IMessageService
 
     public void ShowInformation(string message) => Informations.Add(message);
 
-    public bool Confirm(string message)
+    public bool ConfirmYesNo(string message)
     {
         Confirmations.Add(message);
         return ConfirmAnswers.Count > 0

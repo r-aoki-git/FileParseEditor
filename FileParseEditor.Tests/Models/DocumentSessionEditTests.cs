@@ -5,21 +5,26 @@ using FileParserLib;
 namespace FileParseEditor.Tests.Models;
 
 /// <summary>DocumentSession：編集と元に戻すのテスト（基本設計書 6-3〜6-7、6-9、6-11）。</summary>
-public class DocumentSessionEditTests : IDisposable
+public class DocumentSessionEditTests : IAsyncLifetime
 {
     private const string Content = "# 先頭\n[Profile] # P\n# 名前\nName = \"田代\" # N\n# 年齢\nAge = 30\nMemo =\n\n[Section]\nList = 10,20\n";
 
     private readonly TemporaryDirectory _dir = new();
     private readonly DocumentSession _session = new();
-    private readonly string _openedText;
+    private string _openedText = "";
 
-    public DocumentSessionEditTests()
+    // ファイルを開く処理は非同期のため、各テストの前に IAsyncLifetime で開く
+    public async Task InitializeAsync()
     {
-        _session.Open(_dir.WriteText("a.lfc", Content));
+        await _session.OpenFileAsync(_dir.WriteText("a.lfc", Content));
         _openedText = _session.CurrentText;
     }
 
-    public void Dispose() => _dir.Dispose();
+    public Task DisposeAsync()
+    {
+        _dir.Dispose();
+        return Task.CompletedTask;
+    }
 
     // ---- 値の変更 ----
 
@@ -203,7 +208,7 @@ public class DocumentSessionEditTests : IDisposable
         // ライブラリの Set で戻すと末尾に追加されコメントも失われるが、元に戻すでは元どおりになる
         _session.RemoveKey("Profile", "Name");
 
-        _session.Undo();
+        _session.UndoLastEdit();
 
         Assert.Equal(new[] { "Name", "Age", "Memo" }, _session.Document.Keys("Profile"));
         Assert.Equal(_openedText, _session.CurrentText);
@@ -214,7 +219,7 @@ public class DocumentSessionEditTests : IDisposable
     {
         _session.RemoveSection("Profile");
 
-        _session.Undo();
+        _session.UndoLastEdit();
 
         Assert.Equal(new[] { "Profile", "Section" }, _session.Document.Sections);
         Assert.Equal(_openedText, _session.CurrentText);
@@ -227,15 +232,15 @@ public class DocumentSessionEditTests : IDisposable
         _session.AddKey("Profile", "Email", new LfcValue[] { "a" });
         _session.AddSection("New");
 
-        _session.Undo();
+        _session.UndoLastEdit();
         Assert.Equal(new[] { "Profile", "Section" }, _session.Document.Sections);
         Assert.True(_session.KeyExists("Profile", "Email"));
 
-        _session.Undo();
+        _session.UndoLastEdit();
         Assert.False(_session.KeyExists("Profile", "Email"));
         Assert.Equal(new LfcValue[] { 31 }, _session.Document.Get("Profile", "Age"));
 
-        _session.Undo();
+        _session.UndoLastEdit();
         Assert.Equal(new LfcValue[] { 30 }, _session.Document.Get("Profile", "Age"));
         Assert.False(_session.CanUndo);
     }
@@ -246,7 +251,7 @@ public class DocumentSessionEditTests : IDisposable
         _session.SetValue("Profile", "Age", new LfcValue[] { 31 });
         Assert.True(_session.IsModified);
 
-        _session.Undo();
+        _session.UndoLastEdit();
 
         Assert.False(_session.IsModified);
     }
@@ -265,32 +270,32 @@ public class DocumentSessionEditTests : IDisposable
     [Fact]
     public void Undo_WithoutHistory_Throws()
     {
-        Assert.Throws<InvalidOperationException>(() => _session.Undo());
+        Assert.Throws<InvalidOperationException>(() => _session.UndoLastEdit());
 
         AssertUnchanged();
     }
 
     [Fact]
-    public void Undo_KeepsLoadDiagnostics()
+    public async Task Undo_KeepsLoadDiagnostics()
     {
         // 作り直した文書には Error の行が含まれないため診断情報は0件になるが、表示するのは開いた時点のもの
         var session = new DocumentSession();
-        session.Open(_dir.WriteText("errors.lfc", "[A]\nK = 1\nK = 2\n"));
+        await session.OpenFileAsync(_dir.WriteText("errors.lfc", "[A]\nK = 1\nK = 2\n"));
         var diagnostics = session.LoadDiagnostics;
         session.SetValue("A", "K", new LfcValue[] { 3 });
 
-        session.Undo();
+        session.UndoLastEdit();
 
         Assert.Same(diagnostics, session.LoadDiagnostics);
         Assert.Single(session.LoadDiagnostics);
     }
 
     [Fact]
-    public void Open_ClearsHistory()
+    public async Task Open_ClearsHistory()
     {
         _session.SetValue("Profile", "Age", new LfcValue[] { 31 });
 
-        _session.Open(_dir.WriteText("b.lfc", "K = 1\n"));
+        await _session.OpenFileAsync(_dir.WriteText("b.lfc", "K = 1\n"));
 
         Assert.False(_session.CanUndo);
     }
@@ -300,18 +305,18 @@ public class DocumentSessionEditTests : IDisposable
     {
         _session.SetValue("Profile", "Age", new LfcValue[] { 31 });
 
-        _session.New();
+        _session.CreateNewDocument();
 
         Assert.False(_session.CanUndo);
         Assert.False(_session.IsModified);
     }
 
     [Fact]
-    public void FailedOpen_KeepsHistory()
+    public async Task FailedOpen_KeepsHistory()
     {
         _session.SetValue("Profile", "Age", new LfcValue[] { 31 });
 
-        Assert.Throws<FileNotFoundException>(() => _session.Open(Path.Combine(_dir.Path, "missing.lfc")));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => _session.OpenFileAsync(Path.Combine(_dir.Path, "missing.lfc")));
 
         Assert.True(_session.CanUndo);
         Assert.True(_session.IsModified);

@@ -31,7 +31,7 @@ public class LfcValueNotationParseTests
     [MemberData(nameof(SuccessCases))]
     public void Success_WithoutWarnings(string text, LfcValue[] expected)
     {
-        var result = LfcValueNotation.Parse(text);
+        var result = LfcValueNotation.ParseNotation(text);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(ValueNotationError.None, result.Error);
@@ -49,7 +49,7 @@ public class LfcValueNotationParseTests
     [InlineData("\"x\\d\"", "x\\d", "未定義のエスケープシーケンスです: \\d")]
     public void Success_WithWarning(string text, string expectedString, string expectedWarning)
     {
-        var result = LfcValueNotation.Parse(text);
+        var result = LfcValueNotation.ParseNotation(text);
 
         Assert.True(result.IsSuccess);
         Assert.True(result.HasWarnings);
@@ -60,7 +60,7 @@ public class LfcValueNotationParseTests
     [Fact]
     public void Success_WithWarningsForEachElement()
     {
-        var result = LfcValueNotation.Parse("Auto,1,Manual");
+        var result = LfcValueNotation.ParseNotation("Auto,1,Manual");
 
         Assert.Equal(new[] { "クォートなしの文字列です: Auto", "クォートなしの文字列です: Manual" }, result.Warnings);
         Assert.Equal(new LfcValue[] { "Auto", 1, "Manual" }, result.Values);
@@ -76,7 +76,7 @@ public class LfcValueNotationParseTests
     public void LineBreak_IsError(string text)
     {
         // 改行を許すと、作業用の文書の中で別のキー・セクションとして扱われてしまう
-        var result = LfcValueNotation.Parse(text);
+        var result = LfcValueNotation.ParseNotation(text);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ValueNotationError.LineBreak, result.Error);
@@ -86,8 +86,8 @@ public class LfcValueNotationParseTests
     [Fact]
     public void LineBreakThatWouldAddAnotherKey_IsError()
     {
-        Assert.Equal(ValueNotationError.LineBreak, LfcValueNotation.Parse("1\nOther = 2").Error);
-        Assert.Equal(ValueNotationError.LineBreak, LfcValueNotation.Parse("1\n[Section]").Error);
+        Assert.Equal(ValueNotationError.LineBreak, LfcValueNotation.ParseNotation("1\nOther = 2").Error);
+        Assert.Equal(ValueNotationError.LineBreak, LfcValueNotation.ParseNotation("1\n[Section]").Error);
     }
 
     [Theory]
@@ -95,7 +95,7 @@ public class LfcValueNotationParseTests
     [InlineData("\"a\" \"b\"", "文字列の後に不正な記述があります: \"b\"")]
     public void Syntax_IsError_WithLibraryMessage(string text, string expectedDetail)
     {
-        var result = LfcValueNotation.Parse(text);
+        var result = LfcValueNotation.ParseNotation(text);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ValueNotationError.Syntax, result.Error);
@@ -112,7 +112,7 @@ public class LfcValueNotationParseTests
     public void CommentOutsideQuotes_IsError(string text)
     {
         // # より後ろが黙って捨てられないよう、入力エラーにする
-        var result = LfcValueNotation.Parse(text);
+        var result = LfcValueNotation.ParseNotation(text);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ValueNotationError.Comment, result.Error);
@@ -122,7 +122,7 @@ public class LfcValueNotationParseTests
     [Fact]
     public void Null_Throws()
     {
-        Assert.Equal("text", Assert.Throws<ArgumentNullException>(() => LfcValueNotation.Parse(null!)).ParamName);
+        Assert.Equal("text", Assert.Throws<ArgumentNullException>(() => LfcValueNotation.ParseNotation(null!)).ParamName);
     }
 
     // ---- Format との往復 ----
@@ -142,7 +142,7 @@ public class LfcValueNotationParseTests
     public void Format_ThenParse_RestoresSameValues_WithoutWarnings(LfcValue[] values)
     {
         // 値の編集欄に表示した表記をそのまま確定しても、値は変わらない
-        var result = LfcValueNotation.Parse(LfcValueNotation.Format(values));
+        var result = LfcValueNotation.ParseNotation(LfcValueNotation.ToNotation(values));
 
         Assert.True(result.IsSuccess);
         Assert.False(result.HasWarnings);

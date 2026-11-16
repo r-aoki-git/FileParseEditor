@@ -15,61 +15,61 @@ public class EditHistoryTests
     }
 
     [Fact]
-    public void Pop_ReturnsNewestFirst()
+    public void TakeLatestText_ReturnsNewestFirst()
     {
         var history = new EditHistory();
-        history.Push("a");
-        history.Push("b");
+        history.AddTextBeforeEdit("a");
+        history.AddTextBeforeEdit("b");
 
-        Assert.Equal("b", history.Pop());
-        Assert.Equal("a", history.Pop());
+        Assert.Equal("b", history.TakeLatestText());
+        Assert.Equal("a", history.TakeLatestText());
         Assert.False(history.CanUndo);
     }
 
     [Fact]
-    public void Pop_Empty_Throws()
+    public void TakeLatestText_Empty_Throws()
     {
         var history = new EditHistory();
-        history.Push("a");
-        history.Pop();
+        history.AddTextBeforeEdit("a");
+        history.TakeLatestText();
 
-        Assert.Throws<InvalidOperationException>(() => history.Pop());
+        Assert.Throws<InvalidOperationException>(() => history.TakeLatestText());
     }
 
     [Fact]
-    public void Push_SameTextTwice_KeepsBoth()
+    public void AddTextBeforeEdit_SameTextTwice_KeepsBoth()
     {
         var history = new EditHistory();
-        history.Push("a");
-        history.Push("a");
+        history.AddTextBeforeEdit("a");
+        history.AddTextBeforeEdit("a");
 
         Assert.Equal(2, history.Count);
     }
 
     [Fact]
-    public void Push_EmptyText_IsKept()
+    public void AddTextBeforeEdit_EmptyText_IsKept()
     {
         // 空の文書（ToText() が ""）も、元に戻す先として正しい状態
         var history = new EditHistory();
-        history.Push("");
+        history.AddTextBeforeEdit("");
 
-        Assert.Equal("", history.Pop());
+        Assert.Equal("", history.TakeLatestText());
     }
 
     [Fact]
-    public void Push_OverMaxCount_DropsOldest()
+    public void AddTextBeforeEdit_OverMaxCount_DropsOldest()
     {
         var history = new EditHistory();
         for (var i = 0; i <= EditHistory.MaxCount; i++)   // 上限より1件多く積む
         {
-            history.Push(i.ToString());
+            history.AddTextBeforeEdit(i.ToString());
         }
 
         Assert.Equal(EditHistory.MaxCount, history.Count);
         var popped = new List<string>();
         while (history.CanUndo)
         {
-            popped.Add(history.Pop());
+            popped.Add(history.TakeLatestText());
         }
         Assert.Equal(EditHistory.MaxCount.ToString(), popped[0]);   // 最新は残る
         Assert.Equal("1", popped[^1]);                              // 最も古い "0" だけが捨てられる
@@ -82,21 +82,21 @@ public class EditHistoryTests
     }
 
     [Fact]
-    public void Clear_RemovesAll()
+    public void ClearAll_RemovesAll()
     {
         var history = new EditHistory();
-        history.Push("a");
-        history.Push("b");
+        history.AddTextBeforeEdit("a");
+        history.AddTextBeforeEdit("b");
 
-        history.Clear();
+        history.ClearAll();
 
         Assert.False(history.CanUndo);
-        Assert.Throws<InvalidOperationException>(() => history.Pop());
+        Assert.Throws<InvalidOperationException>(() => history.TakeLatestText());
     }
 
     [Fact]
-    public void Push_Null_Throws()
+    public void AddTextBeforeEdit_Null_Throws()
     {
-        Assert.Equal("text", Assert.Throws<ArgumentNullException>(() => new EditHistory().Push(null!)).ParamName);
+        Assert.Equal("textBeforeEdit", Assert.Throws<ArgumentNullException>(() => new EditHistory().AddTextBeforeEdit(null!)).ParamName);
     }
 }
