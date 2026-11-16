@@ -10,7 +10,7 @@ participant "DocumentSession" as Session
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : メニュー「開く」
-View -> VM : OpenCommand.Execute()
+View -> VM : OpenFileCommand.Execute()
 activate VM
 
 VM -> Session : IsModified
@@ -18,11 +18,16 @@ Session --> VM : true
 VM -> Msg : AskSaveChanges(ファイル名)
 Msg --> VM : Discard（いいえ）
 
-VM -> Dlg : ShowOpenDialog()
+VM -> Dlg : ShowOpenFileDialog()
 Dlg --> VM : path
 
-VM -> Session : Open(path)
+VM -> VM : IsBusy = true
+VM -> Session : OpenFileAsync(path)
 activate Session
+note right of Session
+  ここから別のスレッド（Task.Run）で実行し、
+  画面のスレッドは止めない
+end note
 Session -> Doc : Load(path, ThrowOnError = false)
 activate Doc
 alt 読み込みに成功
@@ -36,13 +41,15 @@ alt 読み込みに成功
       元に戻す履歴を消去する
     end note
     Session --> VM
-    VM -> VM : 表示を更新\n（一覧・保存イメージ・診断情報・タイトル）
+    VM -> VM : IsBusy = false
+    VM -> VM : 表示を更新\n（一覧は1回の通知でまとめて入れ替える）
     opt 診断情報に Error がある
         VM -> Msg : ShowInformation(M02)
     end
 else 例外（FileNotFoundException 等）
     Doc --> Session : 例外
     Session --> VM : 例外（状態は変えない）
+    VM -> VM : IsBusy = false
     VM -> Msg : ShowError(M11)
 end
 deactivate Session

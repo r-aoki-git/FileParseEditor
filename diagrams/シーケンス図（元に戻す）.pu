@@ -9,13 +9,13 @@ participant "EditHistory" as History
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : メニュー「元に戻す」
-View -> VM : UndoCommand.Execute()
+View -> VM : UndoEditCommand.Execute()
 activate VM
 
 VM -> VM : 選択中のセクション・キーを覚える
-VM -> Session : Undo()
+VM -> Session : UndoLastEdit()
 activate Session
-Session -> History : Pop()
+Session -> History : TakeLatestText()
 History --> Session : 変更前のテキスト
 Session -> Doc : Parse(変更前のテキスト, ThrowOnError = false)
 Doc --> Session : 作り直した LfcDocument

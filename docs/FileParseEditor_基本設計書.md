@@ -215,7 +215,7 @@ FileParserLib.dll
 
 1. 保存していない変更があれば、保存するかを確認する（6-10）。キャンセルされたら中止する
 2. ファイルを開くダイアログで、ファイルを選択する（フィルター：「LFCファイル (*.lfc)」「すべてのファイル (*.*)」）。キャンセルされたら中止する。ドラッグ＆ドロップの場合はドロップされたファイルを使う
-3. `LfcDocument.Load(path, new LfcLoadOptions { ThrowOnError = false })`で読み込む。例外が発生した場合は M11 を表示し、現在の文書はそのまま残す
+3. `LfcDocument.Load(path, new LfcLoadOptions { ThrowOnError = false })`で、画面を止めずに読み込む（7-6）。例外が発生した場合は M11 を表示し、現在の文書はそのまま残す
 4. 読み込んだ文書・ファイルのパス・診断情報を保持し、元に戻す履歴を消去する。表示を全て更新する
 5. 診断情報に Error がある場合は M02 を表示する（Warning だけの場合はメッセージを出さず、診断情報一覧にだけ表示する）
 
@@ -273,7 +273,7 @@ FileParserLib.dll
 
 1. 新規作成した文書（ファイルのパスがない）の場合は、名前を付けて保存と同じ動作をする
 2. エラーを含むファイルを開いた後、そのファイルにまだ保存していない場合は、M03 で確認する（要件定義書4-3）。「いいえ」の場合は中止する
-3. `Save(path)`で保存する。例外が発生した場合は M12 を表示する（文書と「変更あり」の状態は変えない）
+3. `SaveFileAsync(path)`で、画面を止めずに保存する（7-6）。例外が発生した場合は M12 を表示する（文書と「変更あり」の状態は変えない）
 4. 保存した内容を「保存済みの内容」として記録する（6-11）。エラーを含むファイルの確認は、以降は行わない
 
 **名前を付けて保存**
@@ -353,7 +353,10 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | 名前空間（フォルダ） | 型 | 種別 | 役割 |
 |---|---|---|---|
 | `FileParseEditor.Core.Mvvm` | `ObservableObject` | 抽象クラス | `INotifyPropertyChanged`の実装。ViewModel の基底クラス |
-| | `RelayCommand` | クラス | `ICommand`の実装。実行する処理と、実行できる条件を受け取る |
+| | `CommandBase` | 抽象クラス（internal） | `ICommand`の共通部分（実行できる条件が変わったことの通知） |
+| | `RelayCommand` | クラス（internal） | すぐに終わる処理のコマンド。実行する処理と、実行できる条件を受け取る |
+| | `AsyncRelayCommand` | クラス（internal） | 時間のかかる処理（ファイルの読み書き）を非同期に実行するコマンド。実行中は重ねて実行できない（7-6） |
+| | `BulkObservableCollection<T>` | クラス（internal） | 中身をまとめて入れ替え、変更の通知を1回にする`ObservableCollection<T>`（7-7） |
 | `FileParseEditor.Core.Models` | `DocumentSession` | クラス | 編集中の文書（`LfcDocument`）、ファイルのパス、診断情報、保存済みの内容、元に戻す履歴をまとめて管理し、6章の操作を行う |
 | | `EditHistory` | クラス | 元に戻す履歴（`ToText()`の結果）を最大100件保持する |
 | | `LfcValueNotation` | 静的クラス | 値と表記の変換（5章） |
@@ -364,6 +367,8 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | | `KeyListItem` | クラス（record） | キー一覧の1行（キー名、値の表記、型） |
 | | `DiagnosticListItem` | クラス（record） | 診断情報一覧の1行（重大度の表示名、行、メッセージ） |
 | | `MessageTexts` | 静的クラス（internal） | メッセージの文言（10章）。画面とテストで同じ文言を使う |
+| | `EditDialogFlow` | クラス（internal） | 入力ダイアログ・確認を伴う編集操作（キーの追加、セクションの追加・削除）の流れ。入力に問題があればダイアログを再表示する |
+| | `ListItemBuilder` | 静的クラス（internal） | 文書の内容から、一覧（セクション・キー・診断情報）の行を作る |
 | | `ValueInputChecker` | クラス（internal） | 表記の解釈結果を利用者に示す（入力エラーはメッセージ、警告付きは確認。6-3 の 2・3、6-4 の 3）。値の変更とキーの追加で同じ流れを使うため、`MainViewModel`から分けている |
 | `FileParseEditor.Core.Services` | `IFileDialogService` | インターフェイス | ファイルを開く・保存するダイアログ |
 | | `IMessageService` | インターフェイス | 確認・エラーのメッセージ |
@@ -383,7 +388,9 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | | `MessageService` | クラス | `IMessageService`の実装（`MessageBox`） |
 | | `InputDialogService` | クラス | `IInputDialogService`の実装（`SectionNameDialog`／`AddKeyDialog`を表示する） |
 
-- MVVMの基盤（`ObservableObject`・`RelayCommand`）は、外部ライブラリを使わずに実装する（非機能要件No.5）
+- MVVMの基盤（`ObservableObject`・`CommandBase`・`RelayCommand`・`AsyncRelayCommand`・`BulkObservableCollection<T>`）は、外部ライブラリを使わずに実装する（非機能要件No.5）
+- `FileParseEditor`（WPF）から使う型（`MainViewModel`、一覧の行、サービスのインターフェイスと`NewKeyInput`、`MainViewModel`の基底クラス`ObservableObject`）だけを`public`とし、それ以外（`Models`の型、コマンド、`EditDialogFlow`など）は`internal`とする（7-8）
+- `MainViewModel`は、表示内容の更新とコマンドの実行できる条件に専念させ、ダイアログを伴う編集の流れ（`EditDialogFlow`）と一覧の行の作成（`ListItemBuilder`）を別の型に分ける（1ファイルが長くなりすぎないようにするため）
 - ダイアログ（`SectionNameDialog`・`AddKeyDialog`）は入力を受け取るだけの小さな画面のため、ViewModel を設けず、コードビハインドで入力値を返す
 
 ### 7-4. クラスどうしの関係
@@ -393,7 +400,10 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `MainViewModel` → `DocumentSession` | 集約（1 対 1） | 文書の操作は`DocumentSession`に任せ、`MainViewModel`は表示内容の更新と確認の流れを担う |
 | `MainViewModel` → `IFileDialogService`・`IMessageService`・`IInputDialogService` | 関連（1 対 1） | コンストラクタで受け取る。テストでは偽の実装に差し替える |
 | `MainViewModel` → `SectionListItem`・`KeyListItem`・`DiagnosticListItem` | 集約（1 対 0..*） | 一覧の表示内容 |
-| `MainViewModel` → `RelayCommand` | 集約（1 対 1..*） | 3-3 の各操作のコマンド |
+| `MainViewModel` → `CommandBase`（`RelayCommand`・`AsyncRelayCommand`） | 集約（1 対 1..*） | 3-3 の各操作のコマンド。ファイルの読み書きは`AsyncRelayCommand` |
+| `MainViewModel` → `BulkObservableCollection<T>` | 集約（1 対 3） | セクション・キー・診断情報の一覧。画面には読み取り専用の`ReadOnlyObservableCollection<T>`として公開する |
+| `MainViewModel` → `EditDialogFlow` | 集約（1 対 1） | キーの追加、セクションの追加・削除の流れを任せる |
+| `MainViewModel` ⇢ `ListItemBuilder` | 依存（使用） | 一覧の行を作る |
 | `MainViewModel` → `ObservableObject` | 継承 | プロパティの変更を画面に通知する |
 | `DocumentSession` → `LfcDocument` | 集約（1 対 1） | 編集中の文書。元に戻すと別のインスタンスに置き換わる |
 | `DocumentSession` → `EditHistory` | 集約（1 対 1） | 元に戻す履歴 |
@@ -419,41 +429,74 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `bool IsModified { get; }` | 保存していない変更があるか（6-11） |
 | `bool CanUndo { get; }` | 元に戻せる履歴があるか |
 | `bool SectionExists(string section)`／`bool KeyExists(string section, string key)` | セクション・キーが文書に存在するか（追加前の重複の確認、コマンドの実行できる条件に使う） |
-| `void Open(string path)` | 6-1 の 3・4 |
-| `void New()` | 6-2 の 2 |
-| `void Save(string path)` | 6-8 の 3・4 |
+| `Task OpenFileAsync(string path)` | 6-1 の 3・4。読み込みは別のスレッドで行う（7-6） |
+| `void CreateNewDocument()` | 6-2 の 2 |
+| `Task SaveFileAsync(string path)` | 6-8 の 3・4。書き込みは別のスレッドで行う（7-6） |
 | `void SetValue(string section, string key, IReadOnlyList<LfcValue> values)` | 履歴を記録して、既存のキーの値を置き換える。キーがなければ例外（ライブラリの`Set`のように追加しない） |
 | `void AddKey(string section, string key, IReadOnlyList<LfcValue> values)` | 既存のキーがあれば例外。履歴を記録して追加する |
 | `bool RemoveKey(string section, string key)`／`bool AddSection(string section)`／`bool RemoveSection(string section)` | 履歴を記録して各操作を行う。対象がない（追加の場合は既にある）ため何もしなかった場合は`false`を返し、履歴も記録しない |
-| `void Undo()` | 6-9 |
+| `void UndoLastEdit()` | 6-9 |
 
 **`MainViewModel`**
 
 | メンバー | 内容 |
 |---|---|
 | `string Title { get; }`／`string StatusText { get; }` | タイトルバー・ステータスバーの表示 |
-| `ObservableCollection<SectionListItem> Sections`、`SectionListItem? SelectedSection` | セクション一覧と選択 |
-| `ObservableCollection<KeyListItem> Keys`、`KeyListItem? SelectedKey` | キー一覧と選択 |
+| `ReadOnlyObservableCollection<SectionListItem> Sections`、`SectionListItem? SelectedSection` | セクション一覧と選択 |
+| `ReadOnlyObservableCollection<KeyListItem> Keys`、`KeyListItem? SelectedKey` | キー一覧と選択 |
 | `string EditingValueText`、`bool IsKeySelected { get; }` | 値の編集欄の入力と、入力できるか（キーを選択しているか） |
 | `string PreviewText { get; }` | 保存イメージ |
-| `ObservableCollection<DiagnosticListItem> Diagnostics` | 診断情報一覧 |
-| `NewCommand`、`OpenCommand`、`SaveCommand`、`SaveAsCommand`、`UndoCommand`、`AddSectionCommand`、`RemoveSectionCommand`、`AddKeyCommand`、`RemoveKeyCommand`、`ApplyValueCommand` | 3-3 の各操作（`ICommand`） |
-| `void OpenDroppedFiles(IReadOnlyList<string> paths)` | ドラッグ＆ドロップで開く（6-1）。ファイル1つの場合だけ開き、それ以外は M13 を表示する |
+| `ReadOnlyObservableCollection<DiagnosticListItem> Diagnostics` | 診断情報一覧 |
+| `bool IsBusy { get; }` | ファイルを読み書き中か。読み書き中はどの操作も実行できない（7-6） |
+| `CreateNewDocumentCommand`、`OpenFileCommand`、`SaveFileCommand`、`SaveFileAsCommand`、`UndoEditCommand`、`AddSectionCommand`、`RemoveSelectedSectionCommand`、`AddKeyCommand`、`RemoveSelectedKeyCommand`、`ApplyEditingValueCommand` | 3-3 の各操作（`ICommand`） |
+| `Task OpenDroppedFilesAsync(IReadOnlyList<string> paths)` | ドラッグ＆ドロップで開く（6-1）。ファイル1つの場合だけ開き、それ以外は M13 を表示する。読み込み中は何もしない |
 | `void ReportUnexpectedError(Exception exception)` | 想定外の例外を M14 で知らせる（9章）。`App`の`DispatcherUnhandledException`から呼び出す |
-| `bool ConfirmClose()` | 終了してよいか（6-10）。`MainWindow`の`Closing`から呼び出す |
+| `bool ConfirmCloseWindow()` | 終了してよいか（6-10）。`MainWindow`の`Closing`から呼び出す |
 
 **`IFileDialogService`／`IMessageService`／`IInputDialogService`**
 
 | メンバー | 内容 |
 |---|---|
-| `string? ShowOpenDialog()` | ファイルを開くダイアログ。キャンセルは`null` |
-| `string? ShowSaveDialog(string? initialPath)` | ファイルを保存するダイアログ。キャンセルは`null` |
+| `string? ShowOpenFileDialog()` | ファイルを開くダイアログ。キャンセルは`null` |
+| `string? ShowSaveFileDialog(string? initialPath)` | ファイルを保存するダイアログ。キャンセルは`null` |
 | `void ShowError(string message)` | エラーのメッセージ |
 | `void ShowInformation(string message)` | 情報のメッセージ |
-| `bool Confirm(string message)` | はい／いいえの確認。「はい」で`true` |
+| `bool ConfirmYesNo(string message)` | はい／いいえの確認。「はい」で`true` |
 | `SaveChangesChoice AskSaveChanges(string fileName)` | はい／いいえ／キャンセルの確認（M01） |
-| `string? AskSectionName(string initialName)` | セクションの追加ダイアログ。キャンセルは`null` |
+| `string? AskNewSectionName(string initialName)` | セクションの追加ダイアログ。キャンセルは`null` |
 | `NewKeyInput? AskNewKey(string sectionDisplayName, NewKeyInput initialInput)` | キーの追加ダイアログ。キャンセルは`null` |
+
+### 7-6. 非同期処理
+
+大きなファイルの読み書きの間に画面が止まり、フリーズしたように見えないよう、ファイルの読み書きは非同期に行う。
+
+| 項目 | 方針 |
+|---|---|
+| 対象 | ファイルを開く（6-1）、保存する（6-8）。ライブラリの`Load`・`Save`は同期処理のため、`Task.Run`で別のスレッドで実行し、完了を`await`で待つ |
+| 画面のスレッド | 文書・一覧・表示の置き換えは、`await`の後（画面のスレッドに戻ってから）行う。別のスレッドでは画面に表示するものを変更しない |
+| 読み書き中の状態 | `MainViewModel.IsBusy`を`true`にし、全てのコマンドを実行できなくする（読み書き中の文書に対する編集や、二重の読み込みを防ぐ）。ステータスバーに読み書き中であることを表示し、マウスカーソルを待機中の表示にする |
+| ドラッグ＆ドロップ | 読み書き中にドロップされたファイルは無視する |
+| コマンド | 非同期の処理は`AsyncRelayCommand`で実行する。実行中は同じコマンドを実行できない |
+| 例外 | ファイルの読み書きの例外は、`await`したところで受け止め、9章のとおりメッセージを表示する。読み書きに失敗しても`IsBusy`は必ず`false`に戻す |
+| 対象外 | 編集（6-3〜6-7）と元に戻す（6-9）は、メモリー上の文書に対する短い処理のため、同期処理とする |
+
+### 7-7. 一覧の変更通知
+
+`ObservableCollection<T>`は、要素を1つ追加・削除するたびに画面へ変更を通知し、そのたびに画面が描き直されるため、キーの多いセクションでは表示が遅くなる。そのため、次のとおりとする。
+
+- 一覧（セクション・キー・診断情報）は、`ObservableCollection<T>`を継承した`BulkObservableCollection<T>`で保持する
+- 一覧を作り直すときは、新しい行を配列で作ってから`ReplaceAll`で中身をまとめて入れ替え、「全体が変わった」（`Reset`）の通知を1回だけ行う
+- 画面には`ReadOnlyObservableCollection<T>`として公開し、`MainViewModel`以外から中身を変更できないようにする
+
+### 7-8. 命名とアクセス修飾子の方針
+
+| 対象 | 方針 | 例 |
+|---|---|---|
+| メソッド・コマンドの名前 | 何に対する操作かが分かる名前にする。`New`・`Open`のように対象が分からない名前や、C# の予約語・定型的な名前と同じ名前は使わない | `CreateNewDocument`、`OpenFileAsync`、`OpenFileCommand`、`UndoLastEdit` |
+| 非同期のメソッド | 名前の末尾を`Async`とし、`Task`を返す | `OpenFileAsync`、`OpenDroppedFilesAsync` |
+| 変換のメソッド | 何から何に変換するかが分かる名前にする | `LfcValueNotation.ToNotation`（値→表記）、`ParseNotation`（表記→値） |
+| アクセス修飾子 | `FileParserLib`と同じ方針とする。WPF のプロジェクトから使う型だけを`public`とし、それ以外は`internal`とする。`internal`の型のメンバーは`internal`とする | `DocumentSession`、`EditHistory`、`RelayCommand`は`internal` |
+| コレクション | `FileParserLib`と同じ方針とする。件数が作る前に決まる一覧の行は配列で作り、件数が増減するものだけ`List<T>`等を使う（理由をコメントに書く） | `ListItemBuilder`は配列を返す。元に戻す履歴は`LinkedList<string>` |
 
 ---
 
@@ -463,44 +506,44 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 
 ### 8-1. ファイルを開く（F1）
 
-1. 利用者がメニューの「開く」を選ぶ。`MainWindow`は`OpenCommand`を実行する
+1. 利用者がメニューの「開く」を選ぶ。`MainWindow`は`OpenFileCommand`を実行する
 2. `MainViewModel`は`DocumentSession.IsModified`を確認し、変更があれば`IMessageService.AskSaveChanges`で確認する（6-10）
-3. `MainViewModel`は`IFileDialogService.ShowOpenDialog`でファイルのパスを得る
-4. `MainViewModel`は`DocumentSession.Open(path)`を呼び出す。`DocumentSession`は`LfcDocument.Load(path, ThrowOnError = false)`で読み込み、文書・パス・診断情報・保存済みの内容を置き換え、履歴を消去する
-5. `MainViewModel`は表示（セクション一覧・キー一覧・保存イメージ・診断情報・タイトル・ステータスバー）を更新する
+3. `MainViewModel`は`IFileDialogService.ShowOpenFileDialog`でファイルのパスを得る
+4. `MainViewModel`は`IsBusy`を`true`にし（全ての操作を実行できなくなり、ステータスバーに「読み込み中」と表示する）、`DocumentSession.OpenFileAsync(path)`の完了を待つ。`DocumentSession`は別のスレッドで`LfcDocument.Load(path, ThrowOnError = false)`による読み込みと`ToText()`を行い、画面のスレッドに戻ってから文書・パス・診断情報・保存済みの内容を置き換え、履歴を消去する
+5. `MainViewModel`は`IsBusy`を`false`に戻し、表示（セクション一覧・キー一覧・保存イメージ・診断情報・タイトル・ステータスバー）を更新する。一覧は、それぞれ1回の変更通知でまとめて入れ替える（7-7）
 6. 診断情報に Error があれば、`IMessageService.ShowInformation`で M02 を表示する
 
-読み込みで例外が発生した場合は、4 で例外が`MainViewModel`に伝わり、`IMessageService.ShowError`で M11 を表示する。`DocumentSession`の状態は変わらない。
+読み込みで例外が発生した場合は、4 で例外が`MainViewModel`に伝わり、`IMessageService.ShowError`で M11 を表示する。`DocumentSession`の状態は変わらず、`IsBusy`は`false`に戻す。
 
 ### 8-2. 値の変更（F4）
 
-1. 利用者が値の編集欄に入力し、「確定」を押す。`MainWindow`は`ApplyValueCommand`を実行する
-2. `MainViewModel`は`LfcValueNotation.Parse(EditingValueText)`で入力を解釈する。`LfcValueNotation`は作業用の文書を`LfcDocument.Parse`で作り、5-2 の規則で結果を返す
+1. 利用者が値の編集欄に入力し、「確定」を押す。`MainWindow`は`ApplyEditingValueCommand`を実行する
+2. `MainViewModel`は`LfcValueNotation.ParseNotation(EditingValueText)`で入力を解釈する。`LfcValueNotation`は作業用の文書を`LfcDocument.Parse`で作り、5-2 の規則で結果を返す
 3. 入力エラーの場合、`MainViewModel`は`IMessageService.ShowError`でメッセージを表示して終了する
-4. 警告付きの場合、`MainViewModel`は`IMessageService.Confirm`で M05 を表示し、「いいえ」なら終了する
-5. `MainViewModel`は`DocumentSession.SetValue`を呼び出す。`DocumentSession`は`ToText()`の結果を`EditHistory`に積み、`LfcDocument.Set`で値を設定する
+4. 警告付きの場合、`MainViewModel`は`IMessageService.ConfirmYesNo`で M05 を表示し、「いいえ」なら終了する
+5. `MainViewModel`は`DocumentSession.SetValue`を呼び出す。`DocumentSession`は`ToText()`の結果を`EditHistory.AddTextBeforeEdit`で履歴に追加し、`LfcDocument.Set`で値を設定する
 6. `MainViewModel`はキー一覧・保存イメージ・タイトルを更新する
 
 ### 8-3. 元に戻す（F9）
 
-1. 利用者がメニューの「元に戻す」を選ぶ。`MainWindow`は`UndoCommand`を実行する
-2. `MainViewModel`は`DocumentSession.Undo`を呼び出す
-3. `DocumentSession`は`EditHistory`から最後のテキストを取り出し、`LfcDocument.Parse(テキスト, ThrowOnError = false)`で文書を作り直して置き換える
+1. 利用者がメニューの「元に戻す」を選ぶ。`MainWindow`は`UndoEditCommand`を実行する
+2. `MainViewModel`は`DocumentSession.UndoLastEdit`を呼び出す
+3. `DocumentSession`は`EditHistory.TakeLatestText`で最新の履歴のテキストを取り出し、`LfcDocument.Parse(テキスト, ThrowOnError = false)`で文書を作り直して置き換える
 4. `MainViewModel`は、選択していたセクション・キーを覚えておき、表示を全て更新した後で、存在すれば選択し直す
 
 ### 8-4. 上書き保存（F7）— エラーを含むファイル
 
-1. 利用者がメニューの「上書き保存」を選ぶ。`MainWindow`は`SaveCommand`を実行する
+1. 利用者がメニューの「上書き保存」を選ぶ。`MainWindow`は`SaveFileCommand`を実行する
 2. `MainViewModel`は`DocumentSession.FilePath`があることを確認する（なければ名前を付けて保存へ）
-3. `MainViewModel`は`DocumentSession.NeedsErrorLossConfirmation(FilePath)`が`true`のため、`IMessageService.Confirm`で M03 を表示する。「いいえ」なら終了する
-4. `MainViewModel`は`DocumentSession.Save(FilePath)`を呼び出す。`DocumentSession`は`LfcDocument.Save`で書き込み、保存済みの内容を記録する
-5. `MainViewModel`はタイトル（「 *」を外す）を更新する
+3. `MainViewModel`は`DocumentSession.NeedsErrorLossConfirmation(FilePath)`が`true`のため、`IMessageService.ConfirmYesNo`で M03 を表示する。「いいえ」なら終了する
+4. `MainViewModel`は`IsBusy`を`true`にし、`DocumentSession.SaveFileAsync(FilePath)`の完了を待つ。`DocumentSession`は別のスレッドで`LfcDocument.Save`により書き込み、保存済みの内容を記録する
+5. `MainViewModel`は`IsBusy`を`false`に戻し、タイトル（「 *」を外す）を更新する
 
 ### 8-5. 終了（F8）
 
-1. 利用者がウィンドウの閉じるボタンを押す。`MainWindow`の`Closing`イベントで、`MainViewModel.ConfirmClose`を呼び出す
+1. 利用者がウィンドウの閉じるボタンを押す。`MainWindow`の`Closing`イベントで、`MainViewModel.ConfirmCloseWindow`を呼び出す
 2. `MainViewModel`は、変更があれば M01 で確認する（6-10）
-3. `ConfirmClose`が`false`を返した場合、`MainWindow`は`Closing`をキャンセルし、終了しない
+3. `ConfirmCloseWindow`が`false`を返した場合、`MainWindow`は`Closing`をキャンセルし、終了しない
 
 ---
 
@@ -553,7 +596,7 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | No.2 画面と処理の分離（MVVM） | ViewModel をWPFに依存しない`FileParseEditor.Core`に置く（7-1）。コードビハインドには、ドラッグ＆ドロップ・閉じる前の確認の呼び出し・ダイアログの入力の受け渡しだけを書く |
 | No.3 ViewModel の単体テスト | ダイアログ・メッセージをインターフェイス（`IFileDialogService`等）経由で呼び出し、テストでは偽の実装に差し替える。`FileParseEditor.Tests`は画面を表示せずに実行できる |
 | No.4 LFCの処理はライブラリに任せる | 値の表記の変換も、ライブラリの`Parse`・`ToText`を使って行い、型判定・エスケープをアプリで実装しない（5章） |
-| No.5 外部ライブラリは使わない | MVVMの基盤を自作する（`ObservableObject`・`RelayCommand`）。テストには xUnit だけを使う |
+| No.5 外部ライブラリは使わない | MVVMの基盤を自作する（`ObservableObject`・`RelayCommand`・`AsyncRelayCommand`・`BulkObservableCollection<T>`）。テストには xUnit だけを使う |
 | No.6 例外で異常終了させない | ライブラリの例外は操作ごとに受け止め、それ以外は`DispatcherUnhandledException`で受け止める（9章） |
 | No.7 規約は`FileParserLib`と同じ | 1ファイル1型、フォルダと名前空間の一致、修飾子・コレクションの方針、`.editorconfig`（UTF-8 BOMなし、LF）を`FileParserLib`と同じにする |
 

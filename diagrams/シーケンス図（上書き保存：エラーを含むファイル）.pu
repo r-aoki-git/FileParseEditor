@@ -9,7 +9,7 @@ participant "DocumentSession" as Session
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : メニュー「上書き保存」
-View -> VM : SaveCommand.Execute()
+View -> VM : SaveFileCommand.Execute()
 activate VM
 
 VM -> Session : FilePath
@@ -17,11 +17,16 @@ Session --> VM : path（開いたファイル）
 
 VM -> Session : NeedsErrorLossConfirmation(path)
 Session --> VM : true
-VM -> Msg : Confirm(M03)
+VM -> Msg : ConfirmYesNo(M03)
 Msg --> VM : true（はい）
 
-VM -> Session : Save(path)
+VM -> VM : IsBusy = true
+VM -> Session : SaveFileAsync(path)
 activate Session
+note right of Session
+  別のスレッド（Task.Run）で書き込み、
+  画面のスレッドは止めない
+end note
 Session -> Doc : Save(path)
 alt 保存に成功
     note right of Doc
@@ -34,10 +39,12 @@ alt 保存に成功
       以降、M03 の確認は行わない
     end note
     Session --> VM
+    VM -> VM : IsBusy = false
     VM -> VM : タイトルを更新（「 *」を外す）
 else 例外（UnauthorizedAccessException 等）
     Doc --> Session : 例外
     Session --> VM : 例外（状態は変えない）
+    VM -> VM : IsBusy = false
     VM -> Msg : ShowError(M12)
 end
 deactivate Session
