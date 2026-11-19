@@ -68,12 +68,20 @@ package "FileParseEditor.Core" {
             --
             +OpenDroppedFilesAsync(paths : IReadOnlyList<string>) : Task
             +ReportUnexpectedError(exception : Exception) : void
-            +ConfirmCloseWindow() : bool
+            +ConfirmCloseWindowAsync() : Task<bool>
         }
         class EditDialogFlow <<internal>> {
             ~AddKeyWithDialog(section : SectionListItem) : string
             ~AddSectionWithDialog() : string
             ~RemoveSectionAfterConfirmation(section : SectionListItem) : bool
+        }
+        class FileSaveFlow <<internal>> {
+            ~SaveToCurrentFileAsync() : Task<bool>
+            ~SaveWithFileDialogAsync() : Task<bool>
+            ~ConfirmDiscardChangesAsync() : Task<bool>
+        }
+        class FileAccessErrors <<static>> <<internal>> {
+            ~{static} IsRecoverable(exception : Exception) : bool
         }
         class ListItemBuilder <<static>> <<internal>> {
             ~{static} BuildSectionItems(session : DocumentSession) : SectionListItem[]
@@ -171,7 +179,7 @@ package "FileParseEditor.Core" {
             +ShowError(message : string) : void
             +ShowInformation(message : string) : void
             +ConfirmYesNo(message : string) : bool
-            +AskSaveChanges(fileName : string) : SaveChangesChoice
+            +AskSaveChanges(message : string) : SaveChangesChoice
         }
         interface IInputDialogService {
             +AskNewSectionName(initialName : string) : string
@@ -202,6 +210,8 @@ MainViewModel o-- "1" DocumentSession
 MainViewModel o-- "1..*" CommandBase
 MainViewModel o-- "3" BulkObservableCollection : 一覧
 MainViewModel o-- "1" EditDialogFlow
+MainViewModel o-- "1" FileSaveFlow
+MainViewModel ..> FileAccessErrors : uses
 MainViewModel o-- "1" ValueInputChecker
 MainViewModel ..> ListItemBuilder : uses
 MainViewModel ..> LfcValueNotation : uses
@@ -210,6 +220,10 @@ MainViewModel --> "1" IFileDialogService
 MainViewModel --> "1" IMessageService
 
 EditDialogFlow --> "1" DocumentSession
+FileSaveFlow --> "1" DocumentSession
+FileSaveFlow --> "1" IFileDialogService
+FileSaveFlow --> "1" IMessageService
+FileSaveFlow ..> FileAccessErrors : uses
 EditDialogFlow --> "1" IMessageService
 EditDialogFlow --> "1" IInputDialogService
 EditDialogFlow --> "1" ValueInputChecker

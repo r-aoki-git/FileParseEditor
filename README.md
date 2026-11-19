@@ -18,6 +18,7 @@ FileParseEditor.Core/       クラスライブラリ（net8.0）… 画面に依
 ├── Mvvm/                     MVVM の基盤（ObservableObject、RelayCommand・AsyncRelayCommand、BulkObservableCollection）
 ├── Models/                   文書の管理（DocumentSession）、元に戻す履歴（EditHistory）、値の表記の変換（LfcValueNotation）
 ├── ViewModels/               画面の表示内容とコマンド（MainViewModel）、ダイアログを伴う編集の流れ（EditDialogFlow）、
+│                             保存と保存していない変更の確認の流れ（FileSaveFlow）、
 │                             一覧の行とその作成（ListItemBuilder）、メッセージの文言
 └── Services/                 ダイアログ・メッセージのインターフェイス
 
@@ -62,6 +63,7 @@ diagrams/                   作図用 PlantUML を図ごとに分けたファイ
 
 - ファイルの読み書きは、画面が止まらないよう別のスレッドで行い（`Task.Run`）、完了を`await`で待つ。画面に表示するものは、`await`の後（画面のスレッド）で変更する
 - 読み書き中は`MainViewModel.IsBusy`を`true`にし、全ての操作を実行できなくする（マウスカーソルは待機中の表示になる）
+- ウィンドウを閉じる前の確認・保存も非同期のため、`MainWindow`の`Closing`ではいったん閉じるのを取り消し、閉じてよいと分かってから改めて閉じる
 
 ## ビルドとテスト
 
