@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows;
 using FileParseEditor.Core.ViewModels;
 
@@ -13,6 +14,9 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
     }
+
+    // 保存していない変更の確認が済み、閉じてよいと分かったか
+    private bool _closeConfirmed;
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;
 
@@ -34,4 +38,23 @@ public partial class MainWindow : Window
     }
 
     private void OnExitMenuItemClick(object sender, RoutedEventArgs e) => Close();
+
+    /// <summary>
+    /// 閉じる前に、保存していない変更を確認する（基本設計書 8-5）。
+    /// 確認と保存は非同期のため、いったん閉じるのを取り消し、閉じてよいと分かってから改めて閉じる。
+    /// </summary>
+    private async void OnClosing(object? sender, CancelEventArgs e)
+    {
+        if (_closeConfirmed)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        if (await ViewModel.ConfirmCloseWindowAsync())
+        {
+            _closeConfirmed = true;
+            Close();
+        }
+    }
 }

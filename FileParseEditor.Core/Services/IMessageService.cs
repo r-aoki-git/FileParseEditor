@@ -14,4 +14,7 @@ public interface IMessageService
     /// <summary>はい／いいえで確認する。</summary>
     /// <returns>「はい」が選ばれた場合は true。</returns>
     bool ConfirmYesNo(string message);
+
+    /// <summary>保存していない変更を保存するかを、はい／いいえ／キャンセルで確認する（M01）。</summary>
+    SaveChangesChoice AskSaveChanges(string message);
 }

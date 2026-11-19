@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Security;
 using System.Windows.Input;
 using FileParseEditor.Core.Models;
 using FileParseEditor.Core.Mvvm;
@@ -10,7 +9,8 @@ namespace FileParseEditor.Core.ViewModels;
 
 /// <summary>
 /// メイン画面の表示内容とコマンド（基本設計書 3章、7-5）。
-/// 文書の操作は <see cref="DocumentSession"/> に、ダイアログを伴う編集の流れは <see cref="EditDialogFlow"/> に任せ、
+/// 文書の操作は <see cref="DocumentSession"/> に、ダイアログを伴う編集の流れは <see cref="EditDialogFlow"/> に、
+/// 保存と保存していない変更の確認の流れは <see cref="FileSaveFlow"/> に任せ、
 /// このクラスは表示内容の更新と、コマンドの実行できる条件を担う。
 /// </summary>
 public sealed class MainViewModel : ObservableObject
@@ -23,6 +23,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly IMessageService _messageService;
     private readonly ValueInputChecker _valueInputChecker;
     private readonly EditDialogFlow _editDialogFlow;
+    private readonly FileSaveFlow _fileSaveFlow;
 
     // 一覧は作り直すたびに中身をまとめて入れ替え、画面への通知を1回にする（基本設計書 7-7）
     private readonly BulkObservableCollection<SectionListItem> _sections = new();
@@ -49,14 +50,18 @@ public sealed class MainViewModel : ObservableObject
         _messageService = messageService;
         _valueInputChecker = new ValueInputChecker(messageService);
         _editDialogFlow = new EditDialogFlow(_session, messageService, inputDialogService, _valueInputChecker);
+        _fileSaveFlow = new FileSaveFlow(_session, fileDialogService, messageService, RunFileOperationAsync);
 
         Sections = new ReadOnlyObservableCollection<SectionListItem>(_sections);
         Keys = new ReadOnlyObservableCollection<KeyListItem>(_keys);
         Diagnostics = new ReadOnlyObservableCollection<DiagnosticListItem>(_diagnostics);
 
         // 読み込み中（IsBusy）は、どの操作も実行できないようにする
-        var createNewDocument = new RelayCommand(CreateNewDocument, () => !IsBusy);
+        // 新規作成・開くは、保存していない変更の確認で保存する場合があるため、非同期のコマンドとする
+        var createNewDocument = new AsyncRelayCommand(CreateNewDocumentAsync, () => !IsBusy);
         var openFile = new AsyncRelayCommand(OpenFileWithDialogAsync, () => !IsBusy);
+        var saveFile = new AsyncRelayCommand(() => _fileSaveFlow.SaveToCurrentFileAsync(), () => !IsBusy);
+        var saveFileAs = new AsyncRelayCommand(() => _fileSaveFlow.SaveWithFileDialogAsync(), () => !IsBusy);
         var undoEdit = new RelayCommand(UndoLastEdit, () => !IsBusy && _session.CanUndo);
         var addSection = new RelayCommand(AddSectionWithDialog, () => !IsBusy);
         var removeSelectedSection = new RelayCommand(RemoveSelectedSection, () => !IsBusy && SelectedSection is not null && _session.SectionExists(SelectedSection.Name));
@@ -65,6 +70,8 @@ public sealed class MainViewModel : ObservableObject
         var applyEditingValue = new RelayCommand(ApplyEditingValue, () => !IsBusy && SelectedKey is not null);
         CreateNewDocumentCommand = createNewDocument;
         OpenFileCommand = openFile;
+        SaveFileCommand = saveFile;
+        SaveFileAsCommand = saveFileAs;
         UndoEditCommand = undoEdit;
         AddSectionCommand = addSection;
         RemoveSelectedSectionCommand = removeSelectedSection;
@@ -73,7 +80,7 @@ public sealed class MainViewModel : ObservableObject
         ApplyEditingValueCommand = applyEditingValue;
         _commands = new CommandBase[]
         {
-            createNewDocument, openFile, undoEdit, addSection, removeSelectedSection, addKey, removeSelectedKey, applyEditingValue,
+            createNewDocument, openFile, saveFile, saveFileAs, undoEdit, addSection, removeSelectedSection, addKey, removeSelectedKey, applyEditingValue,
         };
 
         RefreshAllViews();
@@ -100,7 +107,7 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _previewText, value);
     }
 
-    /// <summary>ファイルを読み込み中か。読み込み中はどの操作も実行できない（基本設計書 7-6）。</summary>
+    /// <summary>ファイルを読み書き中か。読み書き中はどの操作も実行できない（基本設計書 7-6）。</summary>
     public bool IsBusy
     {
         get => _isBusy;
@@ -158,11 +165,17 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>ファイルを開いた時点の診断情報の一覧。</summary>
     public ReadOnlyObservableCollection<DiagnosticListItem> Diagnostics { get; }
 
-    /// <summary>新規作成（基本設計書 6-2）。</summary>
+    /// <summary>保存していない変更を確認してから、新規作成する（基本設計書 6-2）。</summary>
     public ICommand CreateNewDocumentCommand { get; }
 
-    /// <summary>ファイルを開くダイアログで選んだファイルを、非同期に開く（基本設計書 6-1）。</summary>
+    /// <summary>保存していない変更を確認してから、ファイルを開くダイアログで選んだファイルを非同期に開く（基本設計書 6-1）。</summary>
     public ICommand OpenFileCommand { get; }
+
+    /// <summary>上書き保存（基本設計書 6-8）。新規作成した文書は、名前を付けて保存と同じ動作をする。</summary>
+    public ICommand SaveFileCommand { get; }
+
+    /// <summary>名前を付けて保存（基本設計書 6-8）。</summary>
+    public ICommand SaveFileAsCommand { get; }
 
     /// <summary>直前の編集を元に戻す（基本設計書 6-9）。元に戻せる履歴がある場合に実行できる。</summary>
     public ICommand UndoEditCommand { get; }
@@ -184,7 +197,8 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>
     /// ドラッグ＆ドロップされたファイルを、非同期に開く（基本設計書 6-1）。
-    /// ファイル1つの場合だけ開き、複数のファイル・フォルダの場合はメッセージを表示する。読み込み中は何もしない。
+    /// ファイル1つの場合だけ、保存していない変更を確認してから開き、複数のファイル・フォルダの場合はメッセージを表示する。
+    /// 読み書き中は何もしない。
     /// </summary>
     public async Task OpenDroppedFilesAsync(IReadOnlyList<string> paths)
     {
@@ -199,7 +213,25 @@ public sealed class MainViewModel : ObservableObject
             _messageService.ShowError(MessageTexts.DropOneFileOnly);
             return;
         }
+        if (!await _fileSaveFlow.ConfirmDiscardChangesAsync())
+        {
+            return;
+        }
         await OpenFileAsync(paths[0]);
+    }
+
+    /// <summary>
+    /// ウィンドウを閉じてよいかを決める（基本設計書 6-10、8-5）。保存していない変更があれば確認し、「はい」なら保存する。
+    /// ファイルの読み書き中は閉じない。<c>MainWindow</c> の <c>Closing</c> から呼び出す。
+    /// </summary>
+    /// <returns>閉じてよい場合は true。</returns>
+    public async Task<bool> ConfirmCloseWindowAsync()
+    {
+        if (IsBusy)
+        {
+            return false;
+        }
+        return await _fileSaveFlow.ConfirmDiscardChangesAsync();
     }
 
     /// <summary>
@@ -213,14 +245,22 @@ public sealed class MainViewModel : ObservableObject
 
     // ---- ファイル ----
 
-    private void CreateNewDocument()
+    private async Task CreateNewDocumentAsync()
     {
+        if (!await _fileSaveFlow.ConfirmDiscardChangesAsync())
+        {
+            return;
+        }
         _session.CreateNewDocument();
         RefreshAllViews();
     }
 
     private async Task OpenFileWithDialogAsync()
     {
+        if (!await _fileSaveFlow.ConfirmDiscardChangesAsync())
+        {
+            return;
+        }
         var path = _fileDialogService.ShowOpenFileDialog();
         if (path is null)
         {
@@ -231,22 +271,15 @@ public sealed class MainViewModel : ObservableObject
 
     private async Task OpenFileAsync(string path)
     {
-        IsBusy = true;
-        StatusText = $"読み込み中: {path}";
         try
         {
-            await _session.OpenFileAsync(path);
+            await RunFileOperationAsync($"読み込み中: {path}", () => _session.OpenFileAsync(path));
         }
-        catch (Exception ex) when (IsFileAccessError(ex))
+        catch (Exception ex) when (FileAccessErrors.IsRecoverable(ex))
         {
             // 読み込みに失敗した場合は、現在の文書をそのまま残す
             _messageService.ShowError(MessageTexts.OpenFailed(path, MessageTexts.ExceptionDetail(ex)));
             return;
-        }
-        finally
-        {
-            IsBusy = false;
-            RefreshDocumentState();
         }
 
         RefreshAllViews();
@@ -258,13 +291,24 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    /// <summary>ファイルの読み書きで発生する、利用者に知らせて操作を続けられる例外か。</summary>
-    private static bool IsFileAccessError(Exception exception) =>
-        exception is IOException                     // ファイル・フォルダがない、使用中など（FileNotFoundException 等を含む）
-            or UnauthorizedAccessException           // アクセス権がない
-            or ArgumentException                     // パスに使えない文字を含む、空のパス
-            or NotSupportedException                 // パスの形式が正しくない
-            or SecurityException;
+    /// <summary>
+    /// ファイルの読み書きを、全ての操作を実行できない状態（<see cref="IsBusy"/>）で実行する（基本設計書 7-6）。
+    /// 実行中はステータスバーに <paramref name="statusText"/> を表示し、終わったら（失敗した場合も）元の表示に戻す。
+    /// </summary>
+    private async Task RunFileOperationAsync(string statusText, Func<Task> operation)
+    {
+        IsBusy = true;
+        StatusText = statusText;
+        try
+        {
+            await operation();
+        }
+        finally
+        {
+            IsBusy = false;
+            RefreshDocumentState();
+        }
+    }
 
     // ---- 編集 ----
 
