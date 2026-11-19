@@ -593,6 +593,7 @@ public class MainViewModelEditTests : IAsyncLifetime
         SelectKey("Age");
         _viewModel.EditingValueText = "31";
         _viewModel.ApplyEditingValueCommand.Execute(null);
+        _messages.SaveChangesAnswers.Enqueue(SaveChangesChoice.Discard);   // 変更を保存せずに開く
 
         await _viewModel.OpenDroppedFilesAsync(new[] { _dir.WriteText("b.lfc", "K = 1\n") });
 
