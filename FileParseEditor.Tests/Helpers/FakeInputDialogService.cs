@@ -18,7 +18,7 @@ internal sealed class FakeInputDialogService : IInputDialogService
     /// <summary>キーの追加ダイアログを表示したときの、セクションの表示名と初期値（表示した回数分）。</summary>
     internal List<(string Section, NewKeyInput Input)> NewKeyRequests { get; } = new();
 
-    public string? AskSectionName(string initialName)
+    public string? AskNewSectionName(string initialName)
     {
         SectionNameInitialValues.Add(initialName);
         return SectionNameAnswers.Count > 0 ? SectionNameAnswers.Dequeue() : null;

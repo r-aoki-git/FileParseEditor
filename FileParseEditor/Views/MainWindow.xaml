@@ -7,45 +7,56 @@
         PreviewDragOver="OnPreviewDragOver"
         PreviewDrop="OnPreviewDrop">
 
+    <!-- ファイルの読み込み中は、待機中のカーソルを表示する（基本設計書 7-6） -->
+    <Window.Style>
+        <Style TargetType="Window">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                    <Setter Property="Cursor" Value="Wait" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Style>
+
     <Window.InputBindings>
-        <KeyBinding Gesture="Ctrl+N" Command="{Binding NewCommand}" />
-        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenCommand}" />
+        <KeyBinding Gesture="Ctrl+N" Command="{Binding CreateNewDocumentCommand}" />
+        <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenFileCommand}" />
         <!-- 値の編集欄などの TextBox にフォーカスがある間は、TextBox の入力の取り消しとして働く（基本設計書 3-3） -->
-        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoCommand}" />
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoEditCommand}" />
     </Window.InputBindings>
 
     <!-- 上からメニュー、ツールバー、作業領域、診断情報、ステータスバーの順に並べる（基本設計書 3-2） -->
     <DockPanel>
         <Menu DockPanel.Dock="Top">
             <MenuItem Header="ファイル(_F)">
-                <MenuItem Header="新規作成(_N)" InputGestureText="Ctrl+N" Command="{Binding NewCommand}" />
-                <MenuItem Header="開く(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenCommand}" />
+                <MenuItem Header="新規作成(_N)" InputGestureText="Ctrl+N" Command="{Binding CreateNewDocumentCommand}" />
+                <MenuItem Header="開く(_O)..." InputGestureText="Ctrl+O" Command="{Binding OpenFileCommand}" />
                 <Separator />
-                <MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="OnExitClick" />
+                <MenuItem Header="終了(_X)" InputGestureText="Alt+F4" Click="OnExitMenuItemClick" />
             </MenuItem>
             <MenuItem Header="編集(_E)">
-                <MenuItem Header="元に戻す(_U)" InputGestureText="Ctrl+Z" Command="{Binding UndoCommand}" />
+                <MenuItem Header="元に戻す(_U)" InputGestureText="Ctrl+Z" Command="{Binding UndoEditCommand}" />
                 <Separator />
                 <MenuItem Header="セクションの追加(_A)..." Command="{Binding AddSectionCommand}" />
-                <MenuItem Header="セクションの削除(_R)" Command="{Binding RemoveSectionCommand}" />
+                <MenuItem Header="セクションの削除(_R)" Command="{Binding RemoveSelectedSectionCommand}" />
                 <Separator />
                 <MenuItem Header="キーの追加(_K)..." Command="{Binding AddKeyCommand}" />
-                <MenuItem Header="キーの削除(_D)" InputGestureText="Delete" Command="{Binding RemoveKeyCommand}" />
+                <MenuItem Header="キーの削除(_D)" InputGestureText="Delete" Command="{Binding RemoveSelectedKeyCommand}" />
             </MenuItem>
         </Menu>
 
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar>
-                <Button Content="新規" Command="{Binding NewCommand}" ToolTip="新規作成 (Ctrl+N)" />
-                <Button Content="開く" Command="{Binding OpenCommand}" ToolTip="開く (Ctrl+O)" />
+                <Button Content="新規" Command="{Binding CreateNewDocumentCommand}" ToolTip="新規作成 (Ctrl+N)" />
+                <Button Content="開く" Command="{Binding OpenFileCommand}" ToolTip="開く (Ctrl+O)" />
                 <Separator />
-                <Button Content="元に戻す" Command="{Binding UndoCommand}" ToolTip="元に戻す (Ctrl+Z)" />
+                <Button Content="元に戻す" Command="{Binding UndoEditCommand}" ToolTip="元に戻す (Ctrl+Z)" />
                 <Separator />
                 <Button Content="セクション追加" Command="{Binding AddSectionCommand}" ToolTip="セクションの追加" />
-                <Button Content="セクション削除" Command="{Binding RemoveSectionCommand}" ToolTip="セクションの削除" />
+                <Button Content="セクション削除" Command="{Binding RemoveSelectedSectionCommand}" ToolTip="セクションの削除" />
                 <Separator />
                 <Button Content="キー追加" Command="{Binding AddKeyCommand}" ToolTip="キーの追加" />
-                <Button Content="キー削除" Command="{Binding RemoveKeyCommand}" ToolTip="キーの削除 (Delete)" />
+                <Button Content="キー削除" Command="{Binding RemoveSelectedKeyCommand}" ToolTip="キーの削除 (Delete)" />
             </ToolBar>
         </ToolBarTray>
 
@@ -90,11 +101,11 @@
                             <Run Text="値の編集：" /><Run Text="{Binding SelectedKey.Key, Mode=OneWay}" />
                         </TextBlock>
                         <Button DockPanel.Dock="Right" Content="確定" Width="60" Margin="4,0,0,0"
-                                Command="{Binding ApplyValueCommand}" />
+                                Command="{Binding ApplyEditingValueCommand}" />
                         <TextBox Text="{Binding EditingValueText, UpdateSourceTrigger=PropertyChanged}"
                                  FontFamily="Consolas, MS Gothic">
                             <TextBox.InputBindings>
-                                <KeyBinding Key="Enter" Command="{Binding ApplyValueCommand}" />
+                                <KeyBinding Key="Enter" Command="{Binding ApplyEditingValueCommand}" />
                             </TextBox.InputBindings>
                         </TextBox>
                     </DockPanel>
@@ -109,7 +120,7 @@
                               CanUserSortColumns="False"
                               HeadersVisibility="Column">
                         <DataGrid.InputBindings>
-                            <KeyBinding Key="Delete" Command="{Binding RemoveKeyCommand}" />
+                            <KeyBinding Key="Delete" Command="{Binding RemoveSelectedKeyCommand}" />
                         </DataGrid.InputBindings>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="キー" Binding="{Binding Key}" Width="Auto" MinWidth="80" />

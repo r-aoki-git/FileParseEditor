@@ -8,13 +8,13 @@ namespace FileParseEditor.Tests.Helpers;
 internal sealed class FakeFileDialogService : IFileDialogService
 {
     /// <summary>ShowOpenDialog が返すパス。null はキャンセルを表す。</summary>
-    internal string? OpenResult { get; set; }
+    internal string? OpenFileDialogResult { get; set; }
 
-    internal int OpenCallCount { get; private set; }
+    internal int OpenFileDialogCallCount { get; private set; }
 
-    public string? ShowOpenDialog()
+    public string? ShowOpenFileDialog()
     {
-        OpenCallCount++;
-        return OpenResult;
+        OpenFileDialogCallCount++;
+        return OpenFileDialogResult;
     }
 }

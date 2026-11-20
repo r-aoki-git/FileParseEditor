@@ -22,5 +22,5 @@ public partial class AddKeyDialog : Window
     /// <summary>入力されたキー名と値の表記。</summary>
     public NewKeyInput Input => new(KeyBox.Text, ValueBox.Text);
 
-    private void OnOkClick(object sender, RoutedEventArgs e) => DialogResult = true;
+    private void OnOkButtonClick(object sender, RoutedEventArgs e) => DialogResult = true;
 }

@@ -15,7 +15,7 @@ public sealed record KeyListItem(string Key, string ValueText, string TypeText)
     private const string TypeSeparator = ", ";
 
     /// <summary>キー名と値から一覧の1行を作る。</summary>
-    public static KeyListItem From(string key, IReadOnlyList<LfcValue> values)
+    internal static KeyListItem ForKey(string key, IReadOnlyList<LfcValue> values)
     {
         ArgumentNullException.ThrowIfNull(key);
         ArgumentNullException.ThrowIfNull(values);
@@ -29,6 +29,6 @@ public sealed record KeyListItem(string Key, string ValueText, string TypeText)
             }
             types.Append(values[i].Type);
         }
-        return new KeyListItem(key, LfcValueNotation.Format(values), types.ToString());
+        return new KeyListItem(key, LfcValueNotation.ToNotation(values), types.ToString());
     }
 }

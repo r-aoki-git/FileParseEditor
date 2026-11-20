@@ -147,11 +147,22 @@ package "FileParseEditor.Core" {
             #SetProperty(field : T, value : T, propertyName : string) : bool
             #OnPropertyChanged(propertyName : string) : void
         }
-        class RelayCommand {
-            +RelayCommand(execute : Action, canExecute : Func<bool>)
-            +CanExecute(parameter : object) : bool
-            +Execute(parameter : object) : void
-            +RaiseCanExecuteChanged() : void
+        abstract class CommandBase <<internal>> {
+            +CanExecuteChanged : EventHandler
+            +{abstract} CanExecute(parameter : object) : bool
+            +{abstract} Execute(parameter : object) : void
+            ~RaiseCanExecuteChanged() : void
+        }
+        class RelayCommand <<internal>> {
+            ~RelayCommand(execute : Action, canExecute : Func<bool>)
+        }
+        class AsyncRelayCommand <<internal>> {
+            ~IsRunning : bool
+            ~AsyncRelayCommand(execute : Func<Task>, canExecute : Func<bool>)
+            ~ExecuteAsync() : Task
+        }
+        class "BulkObservableCollection<T>" as BulkObservableCollection <<internal>> {
+            ~ReplaceAll(items : IEnumerable<T>) : void
         }
     }
 
@@ -159,97 +170,115 @@ package "FileParseEditor.Core" {
         class MainViewModel {
             +Title : string
             +StatusText : string
-            +Sections : ObservableCollection<SectionListItem>
-            +SelectedSection : SectionListItem
-            +Keys : ObservableCollection<KeyListItem>
-            +SelectedKey : KeyListItem
-            +EditingValueText : string
-            +IsKeySelected : bool
             +PreviewText : string
-            +Diagnostics : ObservableCollection<DiagnosticListItem>
-            +NewCommand : ICommand
-            +OpenCommand : ICommand
-            +SaveCommand : ICommand
-            +SaveAsCommand : ICommand
-            +UndoCommand : ICommand
+            +IsBusy : bool
+            +Sections : ReadOnlyObservableCollection<SectionListItem>
+            +SelectedSection : SectionListItem
+            +Keys : ReadOnlyObservableCollection<KeyListItem>
+            +SelectedKey : KeyListItem
+            +IsKeySelected : bool
+            +EditingValueText : string
+            +Diagnostics : ReadOnlyObservableCollection<DiagnosticListItem>
+            +CreateNewDocumentCommand : ICommand
+            +OpenFileCommand : ICommand
+            +SaveFileCommand : ICommand
+            +SaveFileAsCommand : ICommand
+            +UndoEditCommand : ICommand
             +AddSectionCommand : ICommand
-            +RemoveSectionCommand : ICommand
+            +RemoveSelectedSectionCommand : ICommand
             +AddKeyCommand : ICommand
-            +RemoveKeyCommand : ICommand
-            +ApplyValueCommand : ICommand
+            +RemoveSelectedKeyCommand : ICommand
+            +ApplyEditingValueCommand : ICommand
             --
-            +OpenDroppedFiles(paths : IReadOnlyList<string>) : void
+            +OpenDroppedFilesAsync(paths : IReadOnlyList<string>) : Task
             +ReportUnexpectedError(exception : Exception) : void
-            +ConfirmClose() : bool
+            +ConfirmCloseWindow() : bool
+        }
+        class EditDialogFlow <<internal>> {
+            ~AddKeyWithDialog(section : SectionListItem) : string
+            ~AddSectionWithDialog() : string
+            ~RemoveSectionAfterConfirmation(section : SectionListItem) : bool
+        }
+        class ListItemBuilder <<static>> <<internal>> {
+            ~{static} BuildSectionItems(session : DocumentSession) : SectionListItem[]
+            ~{static} BuildKeyItems(session : DocumentSession, sectionName : string) : KeyListItem[]
+            ~{static} BuildDiagnosticItems(diagnostics : IReadOnlyList<LfcDiagnostic>) : DiagnosticListItem[]
+            ~{static} CountDiagnostics(diagnostics : IReadOnlyList<LfcDiagnostic>, severity : LfcDiagnosticSeverity) : int
         }
         class SectionListItem <<record>> {
             +Name : string
             +DisplayName : string
+            +IsGlobal : bool
+            ~{static} ForSection(name : string) : SectionListItem
         }
         class KeyListItem <<record>> {
             +Key : string
             +ValueText : string
             +TypeText : string
+            ~{static} ForKey(key : string, values : IReadOnlyList<LfcValue>) : KeyListItem
         }
         class DiagnosticListItem <<record>> {
             +SeverityText : string
             +Line : int
             +Message : string
+            ~{static} ForDiagnostic(diagnostic : LfcDiagnostic) : DiagnosticListItem
         }
-        class ValueInputChecker {
-            ~Accept(result : ValueNotationResult) : bool
+        class ValueInputChecker <<internal>> {
+            ~ConfirmValueInput(result : ValueNotationResult) : bool
         }
-        class MessageTexts <<static>> {
+        class MessageTexts <<static>> <<internal>> {
             ~{static} DropOneFileOnly : string
             ~{static} FileHasErrors(errorCount : int) : string
             ~{static} OpenFailed(path : string, detail : string) : string
+            ~{static} ExceptionDetail(exception : Exception) : string
             ~{static} UnexpectedError(detail : string) : string
         }
     }
 
     package "Models" {
-        class DocumentSession {
-            +Document : LfcDocument
-            +FilePath : string
-            +LoadDiagnostics : IReadOnlyList<LfcDiagnostic>
-            +CurrentText : string
-            +IsModified : bool
-            +CanUndo : bool
+        class DocumentSession <<internal>> {
+            ~Document : LfcDocument
+            ~FilePath : string
+            ~LoadDiagnostics : IReadOnlyList<LfcDiagnostic>
+            ~CurrentText : string
+            ~IsModified : bool
+            ~CanUndo : bool
             --
-            +SectionExists(section : string) : bool
-            +KeyExists(section : string, key : string) : bool
-            +Open(path : string) : void
-            +New() : void
-            +Save(path : string) : void
-            +NeedsErrorLossConfirmation(path : string) : bool
-            +SetValue(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
-            +AddKey(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
-            +RemoveKey(section : string, key : string) : bool
-            +AddSection(section : string) : bool
-            +RemoveSection(section : string) : bool
-            +Undo() : void
+            ~SectionExists(section : string) : bool
+            ~KeyExists(section : string, key : string) : bool
+            ~OpenFileAsync(path : string) : Task
+            ~CreateNewDocument() : void
+            ~SaveFileAsync(path : string) : Task
+            ~NeedsErrorLossConfirmation(path : string) : bool
+            ~SetValue(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
+            ~AddKey(section : string, key : string, values : IReadOnlyList<LfcValue>) : void
+            ~RemoveKey(section : string, key : string) : bool
+            ~AddSection(section : string) : bool
+            ~RemoveSection(section : string) : bool
+            ~UndoLastEdit() : void
         }
-        class EditHistory {
-            +MaxCount : int = 100
-            +CanUndo : bool
+        class EditHistory <<internal>> {
+            ~MaxCount : int = 100
+            ~Count : int
+            ~CanUndo : bool
             --
-            +Push(text : string) : void
-            +Pop() : string
-            +Clear() : void
+            ~AddTextBeforeEdit(textBeforeEdit : string) : void
+            ~TakeLatestText() : string
+            ~ClearAll() : void
         }
-        class LfcValueNotation <<static>> {
-            +{static} Format(values : IReadOnlyList<LfcValue>) : string
-            +{static} Parse(text : string) : ValueNotationResult
+        class LfcValueNotation <<static>> <<internal>> {
+            ~{static} ToNotation(values : IReadOnlyList<LfcValue>) : string
+            ~{static} ParseNotation(text : string) : ValueNotationResult
         }
-        class ValueNotationResult <<record>> {
-            +Values : IReadOnlyList<LfcValue>
-            +Warnings : IReadOnlyList<string>
-            +Error : ValueNotationError
-            +ErrorDetail : string
-            +IsSuccess : bool
-            +HasWarnings : bool
+        class ValueNotationResult <<record>> <<internal>> {
+            ~Values : IReadOnlyList<LfcValue>
+            ~Warnings : IReadOnlyList<string>
+            ~Error : ValueNotationError
+            ~ErrorDetail : string
+            ~IsSuccess : bool
+            ~HasWarnings : bool
         }
-        enum ValueNotationError {
+        enum ValueNotationError <<internal>> {
             None
             LineBreak
             Syntax
@@ -259,17 +288,17 @@ package "FileParseEditor.Core" {
 
     package "Services" {
         interface IFileDialogService {
-            +ShowOpenDialog() : string
-            +ShowSaveDialog(initialPath : string) : string
+            +ShowOpenFileDialog() : string
+            +ShowSaveFileDialog(initialPath : string) : string
         }
         interface IMessageService {
             +ShowError(message : string) : void
             +ShowInformation(message : string) : void
-            +Confirm(message : string) : bool
+            +ConfirmYesNo(message : string) : bool
             +AskSaveChanges(fileName : string) : SaveChangesChoice
         }
         interface IInputDialogService {
-            +AskSectionName(initialName : string) : string
+            +AskNewSectionName(initialName : string) : string
             +AskNewKey(sectionDisplayName : string, initialInput : NewKeyInput) : NewKeyInput
         }
         enum SaveChangesChoice {
@@ -291,24 +320,32 @@ package "FileParserLib（lib/FileParserLib.dll）" {
 }
 
 ObservableObject <|-- MainViewModel
+CommandBase <|-- RelayCommand
+CommandBase <|-- AsyncRelayCommand
 MainViewModel o-- "1" DocumentSession
-MainViewModel o-- "1..*" RelayCommand
-MainViewModel o-- "0..*" SectionListItem
-MainViewModel o-- "0..*" KeyListItem
-MainViewModel o-- "0..*" DiagnosticListItem
+MainViewModel o-- "1..*" CommandBase
+MainViewModel o-- "3" BulkObservableCollection : 一覧
+MainViewModel o-- "1" EditDialogFlow
+MainViewModel o-- "1" ValueInputChecker
+MainViewModel ..> ListItemBuilder : uses
+MainViewModel ..> LfcValueNotation : uses
+MainViewModel ..> MessageTexts : uses
 MainViewModel --> "1" IFileDialogService
 MainViewModel --> "1" IMessageService
-MainViewModel --> "1" IInputDialogService
-MainViewModel ..> LfcValueNotation : uses
-MainViewModel o-- "1" ValueInputChecker
+
+EditDialogFlow --> "1" DocumentSession
+EditDialogFlow --> "1" IMessageService
+EditDialogFlow --> "1" IInputDialogService
+EditDialogFlow --> "1" ValueInputChecker
 ValueInputChecker --> "1" IMessageService
 ValueInputChecker ..> ValueNotationResult : checks
-MainViewModel ..> MessageTexts : uses
+ListItemBuilder ..> SectionListItem : creates
+ListItemBuilder ..> KeyListItem : creates
+ListItemBuilder ..> DiagnosticListItem : creates
 
 DocumentSession o-- "1" LfcDocument
 DocumentSession o-- "1" EditHistory
 DocumentSession o-- "0..*" LfcDiagnostic
-DocumentSession ..> LfcValueNotation : uses
 LfcValueNotation ..> LfcDocument : uses
 LfcValueNotation ..> ValueNotationResult : creates
 ValueNotationResult o-- "0..*" LfcValue
@@ -344,7 +381,7 @@ participant "DocumentSession" as Session
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : メニュー「開く」
-View -> VM : OpenCommand.Execute()
+View -> VM : OpenFileCommand.Execute()
 activate VM
 
 VM -> Session : IsModified
@@ -352,11 +389,16 @@ Session --> VM : true
 VM -> Msg : AskSaveChanges(ファイル名)
 Msg --> VM : Discard（いいえ）
 
-VM -> Dlg : ShowOpenDialog()
+VM -> Dlg : ShowOpenFileDialog()
 Dlg --> VM : path
 
-VM -> Session : Open(path)
+VM -> VM : IsBusy = true
+VM -> Session : OpenFileAsync(path)
 activate Session
+note right of Session
+  ここから別のスレッド（Task.Run）で実行し、
+  画面のスレッドは止めない
+end note
 Session -> Doc : Load(path, ThrowOnError = false)
 activate Doc
 alt 読み込みに成功
@@ -370,13 +412,15 @@ alt 読み込みに成功
       元に戻す履歴を消去する
     end note
     Session --> VM
-    VM -> VM : 表示を更新\n（一覧・保存イメージ・診断情報・タイトル）
+    VM -> VM : IsBusy = false
+    VM -> VM : 表示を更新\n（一覧は1回の通知でまとめて入れ替える）
     opt 診断情報に Error がある
         VM -> Msg : ShowInformation(M02)
     end
 else 例外（FileNotFoundException 等）
     Doc --> Session : 例外
     Session --> VM : 例外（状態は変えない）
+    VM -> VM : IsBusy = false
     VM -> Msg : ShowError(M11)
 end
 deactivate Session
@@ -402,10 +446,10 @@ participant "EditHistory" as History
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : 値を入力して「確定」
-View -> VM : ApplyValueCommand.Execute()
+View -> VM : ApplyEditingValueCommand.Execute()
 activate VM
 
-VM -> Notation : Parse(EditingValueText)
+VM -> Notation : ParseNotation(EditingValueText)
 activate Notation
 Notation -> Doc : Parse("K = " + 入力, ThrowOnError = false)
 Doc --> Notation : 作業用の文書（Diagnostics を含む）
@@ -420,14 +464,14 @@ alt 入力エラー
     VM -> Msg : ShowError(M06〜M08)
 else 成功・警告付き
     opt 警告付き
-        VM -> Msg : Confirm(M05)
+        VM -> Msg : ConfirmYesNo(M05)
         Msg --> VM : true（はい。「いいえ」なら終了）
     end
     VM -> Session : SetValue(section, key, values)
     activate Session
     Session -> Doc : ToText()
     Doc --> Session : 変更前のテキスト
-    Session -> History : Push(変更前のテキスト)
+    Session -> History : AddTextBeforeEdit(変更前のテキスト)
     Session -> Doc : Set(section, key, values)
     Session -> Doc : ToText()
     Doc --> Session : 変更後のテキスト
@@ -455,13 +499,13 @@ participant "EditHistory" as History
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : メニュー「元に戻す」
-View -> VM : UndoCommand.Execute()
+View -> VM : UndoEditCommand.Execute()
 activate VM
 
 VM -> VM : 選択中のセクション・キーを覚える
-VM -> Session : Undo()
+VM -> Session : UndoLastEdit()
 activate Session
-Session -> History : Pop()
+Session -> History : TakeLatestText()
 History --> Session : 変更前のテキスト
 Session -> Doc : Parse(変更前のテキスト, ThrowOnError = false)
 Doc --> Session : 作り直した LfcDocument
@@ -494,7 +538,7 @@ participant "DocumentSession" as Session
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : メニュー「上書き保存」
-View -> VM : SaveCommand.Execute()
+View -> VM : SaveFileCommand.Execute()
 activate VM
 
 VM -> Session : FilePath
@@ -502,11 +546,16 @@ Session --> VM : path（開いたファイル）
 
 VM -> Session : NeedsErrorLossConfirmation(path)
 Session --> VM : true
-VM -> Msg : Confirm(M03)
+VM -> Msg : ConfirmYesNo(M03)
 Msg --> VM : true（はい）
 
-VM -> Session : Save(path)
+VM -> VM : IsBusy = true
+VM -> Session : SaveFileAsync(path)
 activate Session
+note right of Session
+  別のスレッド（Task.Run）で書き込み、
+  画面のスレッドは止めない
+end note
 Session -> Doc : Save(path)
 alt 保存に成功
     note right of Doc
@@ -519,10 +568,12 @@ alt 保存に成功
       以降、M03 の確認は行わない
     end note
     Session --> VM
+    VM -> VM : IsBusy = false
     VM -> VM : タイトルを更新（「 *」を外す）
 else 例外（UnauthorizedAccessException 等）
     Doc --> Session : 例外
     Session --> VM : 例外（状態は変えない）
+    VM -> VM : IsBusy = false
     VM -> Msg : ShowError(M12)
 end
 deactivate Session
@@ -536,7 +587,7 @@ deactivate VM
 
 ```plantuml
 @startuml FileParseEditor_Activity_ParseValue
-title 値の入力の解釈（LfcValueNotation.Parse）
+title 値の入力の解釈（LfcValueNotation.ParseNotation）
 
 start
 :入力された表記;

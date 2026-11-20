@@ -3,7 +3,7 @@ namespace FileParseEditor.Core.Models;
 /// <summary>
 /// 値の表記を解釈できなかった理由（基本設計書 5-2）。利用者に見せる文言は ViewModel が決める。
 /// </summary>
-public enum ValueNotationError
+internal enum ValueNotationError
 {
     /// <summary>解釈できた（警告付きを含む）。</summary>
     None,

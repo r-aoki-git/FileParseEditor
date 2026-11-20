@@ -27,7 +27,7 @@ public class LfcValueNotationFormatTests
     [MemberData(nameof(FormatCases))]
     public void Format(LfcValue[] values, string expected)
     {
-        Assert.Equal(expected, LfcValueNotation.Format(values));
+        Assert.Equal(expected, LfcValueNotation.ToNotation(values));
     }
 
     [Theory]
@@ -35,7 +35,7 @@ public class LfcValueNotationFormatTests
     public void Format_ThenParseByLibrary_RestoresSameValues(LfcValue[] values, string _)
     {
         // 表示した表記をそのまま LFC として読み込むと、同じ型・同じ値に戻る（表示が保存時の表記と一致していること）
-        var notation = LfcValueNotation.Format(values);
+        var notation = LfcValueNotation.ToNotation(values);
 
         var document = LfcDocument.Parse("K = " + notation);
 
@@ -48,7 +48,7 @@ public class LfcValueNotationFormatTests
     {
         var values = new LfcValue[] { 1, "a" };
 
-        LfcValueNotation.Format(values);
+        LfcValueNotation.ToNotation(values);
 
         Assert.Equal(new LfcValue[] { 1, "a" }, values);
     }
@@ -56,13 +56,13 @@ public class LfcValueNotationFormatTests
     [Fact]
     public void Format_Null_Throws()
     {
-        Assert.Equal("values", Assert.Throws<ArgumentNullException>(() => LfcValueNotation.Format(null!)).ParamName);
+        Assert.Equal("values", Assert.Throws<ArgumentNullException>(() => LfcValueNotation.ToNotation(null!)).ParamName);
     }
 
     [Fact]
     public void Format_NoValues_Throws()
     {
         // ライブラリの値は必ず1件以上（値なしも Null 1件）のため、0件は不正な引数
-        Assert.Throws<ArgumentException>(() => LfcValueNotation.Format(Array.Empty<LfcValue>()));
+        Assert.Throws<ArgumentException>(() => LfcValueNotation.ToNotation(Array.Empty<LfcValue>()));
     }
 }

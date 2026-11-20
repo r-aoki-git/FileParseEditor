@@ -25,13 +25,13 @@ public class DocumentSessionTests
     }
 
     [Fact]
-    public void Open_LoadsDocumentAndKeepsFullPath()
+    public async Task Open_LoadsDocumentAndKeepsFullPath()
     {
         using var dir = new TemporaryDirectory();
         var path = dir.WriteText("a.lfc", NormalContent);
         var session = new DocumentSession();
 
-        session.Open(path);
+        await session.OpenFileAsync(path);
 
         Assert.Equal(new[] { "", "Profile" }, session.Document.Sections);
         Assert.Equal(Path.GetFullPath(path), session.FilePath);
@@ -41,27 +41,27 @@ public class DocumentSessionTests
     }
 
     [Fact]
-    public void Open_RelativePath_IsKeptAsFullPath()
+    public async Task Open_RelativePath_IsKeptAsFullPath()
     {
         using var dir = new TemporaryDirectory();
         var path = dir.WriteText("a.lfc", NormalContent);
         var relative = Path.GetRelativePath(Environment.CurrentDirectory, path);
         var session = new DocumentSession();
 
-        session.Open(relative);
+        await session.OpenFileAsync(relative);
 
         Assert.Equal(Path.GetFullPath(path), session.FilePath);
         Assert.True(Path.IsPathFullyQualified(session.FilePath!));
     }
 
     [Fact]
-    public void Open_FileWithErrors_DoesNotThrow_AndKeepsDiagnostics()
+    public async Task Open_FileWithErrors_DoesNotThrow_AndKeepsDiagnostics()
     {
         using var dir = new TemporaryDirectory();
         var path = dir.WriteText("errors.lfc", ErrorContent);
         var session = new DocumentSession();
 
-        session.Open(path);
+        await session.OpenFileAsync(path);
 
         Assert.Equal(
             new[] { (LfcDiagnosticSeverity.Error, 3), (LfcDiagnosticSeverity.Error, 4), (LfcDiagnosticSeverity.Warning, 5) },
@@ -72,63 +72,64 @@ public class DocumentSessionTests
     }
 
     [Fact]
-    public void Open_FileWithErrors_IsNotModified_EvenThoughTextDiffersFromFile()
+    public async Task Open_FileWithErrors_IsNotModified_EvenThoughTextDiffersFromFile()
     {
         // 開いた時点の ToText() を「保存済みの内容」とするため、エラーの行が除かれていても「変更あり」にはならない
         using var dir = new TemporaryDirectory();
         var path = dir.WriteText("errors.lfc", ErrorContent);
         var session = new DocumentSession();
 
-        session.Open(path);
+        await session.OpenFileAsync(path);
 
         Assert.NotEqual(ErrorContent, session.CurrentText);
         Assert.False(session.IsModified);
     }
 
     [Fact]
-    public void Open_FileNotFound_Throws_AndKeepsCurrentDocument()
+    public async Task Open_FileNotFound_Throws_AndKeepsCurrentDocument()
     {
         using var dir = new TemporaryDirectory();
         var path = dir.WriteText("a.lfc", NormalContent);
         var session = new DocumentSession();
-        session.Open(path);
+        await session.OpenFileAsync(path);
         var document = session.Document;
 
-        Assert.Throws<FileNotFoundException>(() => session.Open(Path.Combine(dir.Path, "missing.lfc")));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => session.OpenFileAsync(Path.Combine(dir.Path, "missing.lfc")));
 
         Assert.Same(document, session.Document);
         Assert.Equal(Path.GetFullPath(path), session.FilePath);
     }
 
     [Fact]
-    public void Open_Directory_Throws_AndKeepsCurrentDocument()
+    public async Task Open_Directory_Throws_AndKeepsCurrentDocument()
     {
         using var dir = new TemporaryDirectory();
         var session = new DocumentSession();
 
         // フォルダを開こうとした場合の例外の種類は OS によって異なるが、いずれも状態を変えない
-        Assert.ThrowsAny<Exception>(() => session.Open(dir.Path));
+        await Assert.ThrowsAnyAsync<Exception>(() => session.OpenFileAsync(dir.Path));
 
         Assert.Null(session.FilePath);
         Assert.Empty(session.Document.Sections);
     }
 
     [Fact]
-    public void Open_Null_Throws()
+    public async Task Open_Null_Throws()
     {
-        Assert.Equal("path", Assert.Throws<ArgumentNullException>(() => new DocumentSession().Open(null!)).ParamName);
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(() => new DocumentSession().OpenFileAsync(null!));
+        Assert.Equal("path", exception.ParamName);
     }
 
     [Fact]
-    public void Open_AnotherFile_ReplacesDocumentPathAndDiagnostics()
+    public async Task Open_AnotherFile_ReplacesDocumentPathAndDiagnostics()
     {
         using var dir = new TemporaryDirectory();
         var errorPath = dir.WriteText("errors.lfc", ErrorContent);
         var normalPath = dir.WriteText("normal.lfc", NormalContent);
         var session = new DocumentSession();
-        session.Open(errorPath);
+        await session.OpenFileAsync(errorPath);
 
-        session.Open(normalPath);
+        await session.OpenFileAsync(normalPath);
 
         Assert.Equal(Path.GetFullPath(normalPath), session.FilePath);
         Assert.Empty(session.LoadDiagnostics);
@@ -136,14 +137,14 @@ public class DocumentSessionTests
     }
 
     [Fact]
-    public void New_AfterOpen_ResetsToEmptyUntitledDocument()
+    public async Task New_AfterOpen_ResetsToEmptyUntitledDocument()
     {
         using var dir = new TemporaryDirectory();
         var path = dir.WriteText("errors.lfc", ErrorContent);
         var session = new DocumentSession();
-        session.Open(path);
+        await session.OpenFileAsync(path);
 
-        session.New();
+        session.CreateNewDocument();
 
         Assert.Empty(session.Document.Sections);
         Assert.Null(session.FilePath);

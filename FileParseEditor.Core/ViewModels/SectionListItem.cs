@@ -15,7 +15,7 @@ public sealed record SectionListItem(string Name, string DisplayName)
     /// セクション名から一覧の1行を作る。通常のセクションはファイル上の記法と同じく角かっこを付け、
     /// グローバルセクションは「（グローバル）」と表示する。
     /// </summary>
-    public static SectionListItem From(string name)
+    internal static SectionListItem ForSection(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
         return name == LfcDocument.GlobalSectionName
@@ -23,5 +23,6 @@ public sealed record SectionListItem(string Name, string DisplayName)
             : new SectionListItem(name, $"[{name}]");
     }
 
+    /// <summary>グローバルセクションの行か。</summary>
     public bool IsGlobal => Name == LfcDocument.GlobalSectionName;
 }

@@ -10,7 +10,8 @@ namespace FileParseEditor.Core.ViewModels;
 
 /// <summary>
 /// メイン画面の表示内容とコマンド（基本設計書 3章、7-5）。
-/// 文書の操作は <see cref="DocumentSession"/> に任せ、このクラスは表示内容の更新と、確認・メッセージの流れを担う。
+/// 文書の操作は <see cref="DocumentSession"/> に、ダイアログを伴う編集の流れは <see cref="EditDialogFlow"/> に任せ、
+/// このクラスは表示内容の更新と、コマンドの実行できる条件を担う。
 /// </summary>
 public sealed class MainViewModel : ObservableObject
 {
@@ -20,11 +21,16 @@ public sealed class MainViewModel : ObservableObject
     private readonly DocumentSession _session = new();
     private readonly IFileDialogService _fileDialogService;
     private readonly IMessageService _messageService;
-    private readonly IInputDialogService _inputDialogService;
     private readonly ValueInputChecker _valueInputChecker;
+    private readonly EditDialogFlow _editDialogFlow;
+
+    // 一覧は作り直すたびに中身をまとめて入れ替え、画面への通知を1回にする（基本設計書 7-7）
+    private readonly BulkObservableCollection<SectionListItem> _sections = new();
+    private readonly BulkObservableCollection<KeyListItem> _keys = new();
+    private readonly BulkObservableCollection<DiagnosticListItem> _diagnostics = new();
 
     // 実行できる条件が選択や文書の状態で変わるコマンド。状態が変わるたびに画面へ通知する
-    private readonly RelayCommand[] _conditionalCommands;
+    private readonly CommandBase[] _commands;
 
     private SectionListItem? _selectedSection;
     private KeyListItem? _selectedKey;
@@ -32,6 +38,7 @@ public sealed class MainViewModel : ObservableObject
     private string _title = "";
     private string _statusText = "";
     private string _previewText = "";
+    private bool _isBusy;
 
     public MainViewModel(IFileDialogService fileDialogService, IMessageService messageService, IInputDialogService inputDialogService)
     {
@@ -40,26 +47,36 @@ public sealed class MainViewModel : ObservableObject
         ArgumentNullException.ThrowIfNull(inputDialogService);
         _fileDialogService = fileDialogService;
         _messageService = messageService;
-        _inputDialogService = inputDialogService;
         _valueInputChecker = new ValueInputChecker(messageService);
+        _editDialogFlow = new EditDialogFlow(_session, messageService, inputDialogService, _valueInputChecker);
 
-        NewCommand = new RelayCommand(New);
-        OpenCommand = new RelayCommand(Open);
-        AddSectionCommand = new RelayCommand(AddSection);
+        Sections = new ReadOnlyObservableCollection<SectionListItem>(_sections);
+        Keys = new ReadOnlyObservableCollection<KeyListItem>(_keys);
+        Diagnostics = new ReadOnlyObservableCollection<DiagnosticListItem>(_diagnostics);
 
-        var undo = new RelayCommand(Undo, () => _session.CanUndo);
-        var removeSection = new RelayCommand(RemoveSection, () => SelectedSection is not null && _session.SectionExists(SelectedSection.Name));
-        var addKey = new RelayCommand(AddKey, () => SelectedSection is not null);
-        var removeKey = new RelayCommand(RemoveKey, () => SelectedKey is not null);
-        var applyValue = new RelayCommand(ApplyValue, () => SelectedKey is not null);
-        UndoCommand = undo;
-        RemoveSectionCommand = removeSection;
+        // 読み込み中（IsBusy）は、どの操作も実行できないようにする
+        var createNewDocument = new RelayCommand(CreateNewDocument, () => !IsBusy);
+        var openFile = new AsyncRelayCommand(OpenFileWithDialogAsync, () => !IsBusy);
+        var undoEdit = new RelayCommand(UndoLastEdit, () => !IsBusy && _session.CanUndo);
+        var addSection = new RelayCommand(AddSectionWithDialog, () => !IsBusy);
+        var removeSelectedSection = new RelayCommand(RemoveSelectedSection, () => !IsBusy && SelectedSection is not null && _session.SectionExists(SelectedSection.Name));
+        var addKey = new RelayCommand(AddKeyWithDialog, () => !IsBusy && SelectedSection is not null);
+        var removeSelectedKey = new RelayCommand(RemoveSelectedKey, () => !IsBusy && SelectedKey is not null);
+        var applyEditingValue = new RelayCommand(ApplyEditingValue, () => !IsBusy && SelectedKey is not null);
+        CreateNewDocumentCommand = createNewDocument;
+        OpenFileCommand = openFile;
+        UndoEditCommand = undoEdit;
+        AddSectionCommand = addSection;
+        RemoveSelectedSectionCommand = removeSelectedSection;
         AddKeyCommand = addKey;
-        RemoveKeyCommand = removeKey;
-        ApplyValueCommand = applyValue;
-        _conditionalCommands = new[] { undo, removeSection, addKey, removeKey, applyValue };
+        RemoveSelectedKeyCommand = removeSelectedKey;
+        ApplyEditingValueCommand = applyEditingValue;
+        _commands = new CommandBase[]
+        {
+            createNewDocument, openFile, undoEdit, addSection, removeSelectedSection, addKey, removeSelectedKey, applyEditingValue,
+        };
 
-        RefreshAll();
+        RefreshAllViews();
     }
 
     /// <summary>タイトルバーの表示（「FileParseEditor - ファイル名」。変更ありの場合は末尾に「 *」）。</summary>
@@ -69,7 +86,7 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _title, value);
     }
 
-    /// <summary>ステータスバーの表示（ファイルのパス、セクション・警告・エラーの件数）。</summary>
+    /// <summary>ステータスバーの表示（ファイルのパス、セクション・警告・エラーの件数。読み込み中はその旨）。</summary>
     public string StatusText
     {
         get => _statusText;
@@ -83,8 +100,21 @@ public sealed class MainViewModel : ObservableObject
         private set => SetProperty(ref _previewText, value);
     }
 
+    /// <summary>ファイルを読み込み中か。読み込み中はどの操作も実行できない（基本設計書 7-6）。</summary>
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetProperty(ref _isBusy, value))
+            {
+                RaiseCanExecuteChangedForAll();
+            }
+        }
+    }
+
     /// <summary>セクション一覧。先頭は常にグローバルセクション（基本設計書 3-4-1）。</summary>
-    public ObservableCollection<SectionListItem> Sections { get; } = new();
+    public ReadOnlyObservableCollection<SectionListItem> Sections { get; }
 
     /// <summary>選択中のセクション。変えるとキー一覧が更新される。</summary>
     public SectionListItem? SelectedSection
@@ -94,13 +124,13 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedSection, value))
             {
-                RefreshKeys(null);
+                RefreshKeyList(null);
             }
         }
     }
 
     /// <summary>選択中のセクションのキー一覧。</summary>
-    public ObservableCollection<KeyListItem> Keys { get; } = new();
+    public ReadOnlyObservableCollection<KeyListItem> Keys { get; }
 
     /// <summary>選択中のキー。変えると値の編集欄に、そのキーの値の表記が入る（入力中の内容は破棄する。基本設計書 3-4-3）。</summary>
     public KeyListItem? SelectedKey
@@ -126,46 +156,50 @@ public sealed class MainViewModel : ObservableObject
     }
 
     /// <summary>ファイルを開いた時点の診断情報の一覧。</summary>
-    public ObservableCollection<DiagnosticListItem> Diagnostics { get; } = new();
+    public ReadOnlyObservableCollection<DiagnosticListItem> Diagnostics { get; }
 
     /// <summary>新規作成（基本設計書 6-2）。</summary>
-    public ICommand NewCommand { get; }
+    public ICommand CreateNewDocumentCommand { get; }
 
-    /// <summary>ファイルを開くダイアログで選んだファイルを開く（基本設計書 6-1）。</summary>
-    public ICommand OpenCommand { get; }
+    /// <summary>ファイルを開くダイアログで選んだファイルを、非同期に開く（基本設計書 6-1）。</summary>
+    public ICommand OpenFileCommand { get; }
 
     /// <summary>直前の編集を元に戻す（基本設計書 6-9）。元に戻せる履歴がある場合に実行できる。</summary>
-    public ICommand UndoCommand { get; }
+    public ICommand UndoEditCommand { get; }
 
     /// <summary>セクションの追加（基本設計書 6-6）。</summary>
     public ICommand AddSectionCommand { get; }
 
     /// <summary>選択中のセクションの削除（基本設計書 6-7）。セクションが文書に存在する場合に実行できる。</summary>
-    public ICommand RemoveSectionCommand { get; }
+    public ICommand RemoveSelectedSectionCommand { get; }
 
     /// <summary>選択中のセクションへのキーの追加（基本設計書 6-4）。セクションを選択している場合に実行できる。</summary>
     public ICommand AddKeyCommand { get; }
 
     /// <summary>選択中のキーの削除（基本設計書 6-5）。キーを選択している場合に実行できる。</summary>
-    public ICommand RemoveKeyCommand { get; }
+    public ICommand RemoveSelectedKeyCommand { get; }
 
     /// <summary>値の編集欄の入力で、選択中のキーの値を変更する（基本設計書 6-3）。キーを選択している場合に実行できる。</summary>
-    public ICommand ApplyValueCommand { get; }
+    public ICommand ApplyEditingValueCommand { get; }
 
     /// <summary>
-    /// ドラッグ＆ドロップされたファイルを開く（基本設計書 6-1）。
-    /// ファイル1つの場合だけ開き、複数のファイル・フォルダの場合はメッセージを表示する。
+    /// ドラッグ＆ドロップされたファイルを、非同期に開く（基本設計書 6-1）。
+    /// ファイル1つの場合だけ開き、複数のファイル・フォルダの場合はメッセージを表示する。読み込み中は何もしない。
     /// </summary>
-    public void OpenDroppedFiles(IReadOnlyList<string> paths)
+    public async Task OpenDroppedFilesAsync(IReadOnlyList<string> paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
 
+        if (IsBusy)
+        {
+            return;
+        }
         if (paths.Count != 1 || Directory.Exists(paths[0]))
         {
             _messageService.ShowError(MessageTexts.DropOneFileOnly);
             return;
         }
-        OpenFile(paths[0]);
+        await OpenFileAsync(paths[0]);
     }
 
     /// <summary>
@@ -174,41 +208,48 @@ public sealed class MainViewModel : ObservableObject
     public void ReportUnexpectedError(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
-        _messageService.ShowError(MessageTexts.UnexpectedError(MessageTexts.DetailOf(exception)));
+        _messageService.ShowError(MessageTexts.UnexpectedError(MessageTexts.ExceptionDetail(exception)));
     }
 
     // ---- ファイル ----
 
-    private void New()
+    private void CreateNewDocument()
     {
-        _session.New();
-        RefreshAll();
+        _session.CreateNewDocument();
+        RefreshAllViews();
     }
 
-    private void Open()
+    private async Task OpenFileWithDialogAsync()
     {
-        var path = _fileDialogService.ShowOpenDialog();
+        var path = _fileDialogService.ShowOpenFileDialog();
         if (path is null)
         {
             return;
         }
-        OpenFile(path);
+        await OpenFileAsync(path);
     }
 
-    private void OpenFile(string path)
+    private async Task OpenFileAsync(string path)
     {
+        IsBusy = true;
+        StatusText = $"読み込み中: {path}";
         try
         {
-            _session.Open(path);
+            await _session.OpenFileAsync(path);
         }
         catch (Exception ex) when (IsFileAccessError(ex))
         {
             // 読み込みに失敗した場合は、現在の文書をそのまま残す
-            _messageService.ShowError(MessageTexts.OpenFailed(path, MessageTexts.DetailOf(ex)));
+            _messageService.ShowError(MessageTexts.OpenFailed(path, MessageTexts.ExceptionDetail(ex)));
             return;
         }
+        finally
+        {
+            IsBusy = false;
+            RefreshDocumentState();
+        }
 
-        RefreshAll();
+        RefreshAllViews();
 
         var errorCount = CountDiagnostics(LfcDiagnosticSeverity.Error);
         if (errorCount > 0)
@@ -227,7 +268,7 @@ public sealed class MainViewModel : ObservableObject
 
     // ---- 編集 ----
 
-    private void ApplyValue()
+    private void ApplyEditingValue()
     {
         var section = SelectedSection;
         var key = SelectedKey;
@@ -236,8 +277,8 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        var result = LfcValueNotation.Parse(EditingValueText);
-        if (!_valueInputChecker.Accept(result))
+        var result = LfcValueNotation.ParseNotation(EditingValueText);
+        if (!_valueInputChecker.ConfirmValueInput(result))
         {
             return;   // 入力は値の編集欄に残す
         }
@@ -246,16 +287,16 @@ public sealed class MainViewModel : ObservableObject
         if (current.SequenceEqual(result.Values))
         {
             // 値が変わらない場合は変更として扱わない（表記だけを正規化して表示する）
-            EditingValueText = LfcValueNotation.Format(result.Values);
+            EditingValueText = LfcValueNotation.ToNotation(result.Values);
             return;
         }
 
         _session.SetValue(section.Name, key.Key, result.Values);
-        RefreshKeys(key.Key);
+        RefreshKeyList(key.Key);
         RefreshDocumentState();
     }
 
-    private void AddKey()
+    private void AddKeyWithDialog()
     {
         var section = SelectedSection;
         if (section is null)
@@ -263,51 +304,16 @@ public sealed class MainViewModel : ObservableObject
             return;
         }
 
-        // 入力に問題があった場合は、メッセージの後に入力を残したままダイアログを再表示する（基本設計書 3-5-2）
-        var input = NewKeyInput.Empty;
-        while (true)
+        var addedKey = _editDialogFlow.AddKeyWithDialog(section);
+        if (addedKey is null)
         {
-            var answer = _inputDialogService.AskNewKey(section.DisplayName, input);
-            if (answer is null)
-            {
-                return;
-            }
-            input = answer;
-
-            if (input.Key.Length == 0)
-            {
-                _messageService.ShowError(MessageTexts.NameRequired);
-                continue;
-            }
-            if (_session.KeyExists(section.Name, input.Key))
-            {
-                _messageService.ShowError(MessageTexts.KeyAlreadyExists(input.Key));
-                continue;
-            }
-
-            var result = LfcValueNotation.Parse(input.ValueText);
-            if (!_valueInputChecker.Accept(result))
-            {
-                continue;
-            }
-
-            try
-            {
-                _session.AddKey(section.Name, input.Key, result.Values);
-            }
-            catch (ArgumentException ex)
-            {
-                _messageService.ShowError(MessageTexts.InvalidName(MessageTexts.DetailOf(ex)));
-                continue;
-            }
-            break;
+            return;
         }
-
-        RefreshKeys(input.Key);
+        RefreshKeyList(addedKey);
         RefreshDocumentState();
     }
 
-    private void RemoveKey()
+    private void RemoveSelectedKey()
     {
         var section = SelectedSection;
         var key = SelectedKey;
@@ -319,7 +325,7 @@ public sealed class MainViewModel : ObservableObject
         // 確認は行わない（元に戻すで戻せるため。基本設計書 6-5）
         var index = Keys.IndexOf(key);
         _session.RemoveKey(section.Name, key.Key);
-        RefreshKeys(null);
+        RefreshKeyList(null);
 
         // 削除したキーの次のキー（末尾だった場合は前のキー）を選択する
         if (Keys.Count > 0)
@@ -329,67 +335,29 @@ public sealed class MainViewModel : ObservableObject
         RefreshDocumentState();
     }
 
-    private void AddSection()
+    private void AddSectionWithDialog()
     {
-        var name = "";
-        while (true)
+        var sectionName = _editDialogFlow.AddSectionWithDialog();
+        if (sectionName is null)
         {
-            var answer = _inputDialogService.AskSectionName(name);
-            if (answer is null)
-            {
-                return;
-            }
-            name = answer;
-
-            // グローバルセクションは常に一覧にあるため、追加の対象としない（基本設計書 6-6）
-            if (name.Length == 0)
-            {
-                _messageService.ShowError(MessageTexts.NameRequired);
-                continue;
-            }
-            if (_session.SectionExists(name))
-            {
-                _messageService.ShowInformation(MessageTexts.SectionAlreadyExists(SectionListItem.From(name).DisplayName));
-                SelectedSection = FindSection(name);
-                return;
-            }
-
-            try
-            {
-                _session.AddSection(name);
-            }
-            catch (ArgumentException ex)
-            {
-                _messageService.ShowError(MessageTexts.InvalidName(MessageTexts.DetailOf(ex)));
-                continue;
-            }
-            break;
+            return;
         }
-
-        RefreshAll(name, null);
+        RefreshAllViews(sectionName, null);
     }
 
-    private void RemoveSection()
+    private void RemoveSelectedSection()
     {
         var section = SelectedSection;
-        if (section is null || !_session.SectionExists(section.Name))
+        if (section is null || !_editDialogFlow.RemoveSectionAfterConfirmation(section))
         {
             return;
         }
-
-        var keyCount = _session.Document.Keys(section.Name).Count;
-        if (!_messageService.Confirm(MessageTexts.ConfirmRemoveSection(section.DisplayName, keyCount)))
-        {
-            return;
-        }
-
-        _session.RemoveSection(section.Name);
 
         // グローバルセクションは削除しても一覧に残るため、選択したままにする
-        RefreshAll(section.Name, null);
+        RefreshAllViews(section.Name, null);
     }
 
-    private void Undo()
+    private void UndoLastEdit()
     {
         if (!_session.CanUndo)
         {
@@ -399,8 +367,8 @@ public sealed class MainViewModel : ObservableObject
         // 元に戻した後も、同じセクション・キーがあれば選択し直す（基本設計書 6-9）
         var sectionName = SelectedSection?.Name;
         var keyName = SelectedKey?.Key;
-        _session.Undo();
-        RefreshAll(sectionName, keyName);
+        _session.UndoLastEdit();
+        RefreshAllViews(sectionName, keyName);
     }
 
     // ---- 表示の更新 ----
@@ -408,51 +376,31 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>
     /// 全ての表示を更新する。指定した名前のセクション・キーがあれば選択し、なければ先頭（グローバルセクション）を選択する。
     /// </summary>
-    private void RefreshAll(string? sectionName = null, string? keyName = null)
+    private void RefreshAllViews(string? sectionName = null, string? keyName = null)
     {
-        Sections.Clear();
-        Sections.Add(SectionListItem.From(LfcDocument.GlobalSectionName));
-        foreach (var name in _session.Document.Sections)
-        {
-            // グローバルセクションは常に先頭に追加済み
-            if (name != LfcDocument.GlobalSectionName)
-            {
-                Sections.Add(SectionListItem.From(name));
-            }
-        }
+        _sections.ReplaceAll(ListItemBuilder.BuildSectionItems(_session));
 
         // 同じ内容の行（record は値で比較される）を選び直した場合も、キー一覧は必ず作り直す
-        _selectedSection = (sectionName is null ? null : FindSection(sectionName)) ?? Sections[0];
+        _selectedSection = (sectionName is null ? null : FindSection(sectionName)) ?? _sections[0];
         OnPropertyChanged(nameof(SelectedSection));
-        RefreshKeys(keyName);
+        RefreshKeyList(keyName);
 
-        Diagnostics.Clear();
-        foreach (var diagnostic in _session.LoadDiagnostics)
-        {
-            Diagnostics.Add(DiagnosticListItem.From(diagnostic));
-        }
+        _diagnostics.ReplaceAll(ListItemBuilder.BuildDiagnosticItems(_session.LoadDiagnostics));
 
         RefreshDocumentState();
     }
 
     /// <summary>選択中のセクションのキー一覧を作り直す。指定した名前のキーがあれば選択する。</summary>
-    private void RefreshKeys(string? keyName)
+    private void RefreshKeyList(string? keyName)
     {
-        Keys.Clear();
-
-        var section = SelectedSection;
-        if (section is not null && _session.SectionExists(section.Name))
-        {
-            // グローバルセクションは、文書に存在しない場合も一覧に表示するため、その場合はキーを0件として扱う
-            var document = _session.Document;
-            foreach (var key in document.Keys(section.Name))
-            {
-                Keys.Add(KeyListItem.From(key, document.Get(section.Name, key)));
-            }
-        }
+        // セクションを選択していない場合は0件とする
+        var items = SelectedSection is null
+            ? Array.Empty<KeyListItem>()
+            : ListItemBuilder.BuildKeyItems(_session, SelectedSection.Name);
+        _keys.ReplaceAll(items);
 
         KeyListItem? selected = null;
-        foreach (var item in Keys)
+        foreach (var item in items)
         {
             if (item.Key == keyName)
             {
@@ -470,7 +418,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(SelectedKey));
         OnPropertyChanged(nameof(IsKeySelected));
         EditingValueText = item?.ValueText ?? "";
-        RaiseCanExecuteChanged();
+        RaiseCanExecuteChangedForAll();
     }
 
     /// <summary>タイトル・ステータスバー・保存イメージと、コマンドの実行できる条件を更新する。</summary>
@@ -486,12 +434,12 @@ public sealed class MainViewModel : ObservableObject
             $"エラー {CountDiagnostics(LfcDiagnosticSeverity.Error)}件");
 
         PreviewText = _session.CurrentText;
-        RaiseCanExecuteChanged();
+        RaiseCanExecuteChangedForAll();
     }
 
-    private void RaiseCanExecuteChanged()
+    private void RaiseCanExecuteChangedForAll()
     {
-        foreach (var command in _conditionalCommands)
+        foreach (var command in _commands)
         {
             command.RaiseCanExecuteChanged();
         }
@@ -499,7 +447,7 @@ public sealed class MainViewModel : ObservableObject
 
     private SectionListItem? FindSection(string name)
     {
-        foreach (var section in Sections)
+        foreach (var section in _sections)
         {
             if (section.Name == name)
             {
@@ -509,16 +457,6 @@ public sealed class MainViewModel : ObservableObject
         return null;
     }
 
-    private int CountDiagnostics(LfcDiagnosticSeverity severity)
-    {
-        var count = 0;
-        foreach (var diagnostic in _session.LoadDiagnostics)
-        {
-            if (diagnostic.Severity == severity)
-            {
-                count++;
-            }
-        }
-        return count;
-    }
+    private int CountDiagnostics(LfcDiagnosticSeverity severity) =>
+        ListItemBuilder.CountDiagnostics(_session.LoadDiagnostics, severity);
 }

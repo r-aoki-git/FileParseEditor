@@ -13,5 +13,5 @@ public interface IMessageService
 
     /// <summary>はい／いいえで確認する。</summary>
     /// <returns>「はい」が選ばれた場合は true。</returns>
-    bool Confirm(string message);
+    bool ConfirmYesNo(string message);
 }

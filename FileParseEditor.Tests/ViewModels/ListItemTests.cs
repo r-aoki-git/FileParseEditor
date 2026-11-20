@@ -11,7 +11,7 @@ public class ListItemTests
     [Fact]
     public void Section_Global_IsShownAsGlobal()
     {
-        var item = SectionListItem.From(LfcDocument.GlobalSectionName);
+        var item = SectionListItem.ForSection(LfcDocument.GlobalSectionName);
 
         Assert.Equal(new SectionListItem("", "（グローバル）"), item);
         Assert.True(item.IsGlobal);
@@ -23,7 +23,7 @@ public class ListItemTests
     [InlineData("（グローバル）", "[（グローバル）]")]   // 同じ文字のセクションも、角かっこでグローバルと区別できる
     public void Section_Normal_IsShownWithBrackets(string name, string expected)
     {
-        var item = SectionListItem.From(name);
+        var item = SectionListItem.ForSection(name);
 
         Assert.Equal(expected, item.DisplayName);
         Assert.Equal(name, item.Name);
@@ -33,7 +33,7 @@ public class ListItemTests
     [Fact]
     public void Section_Null_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => SectionListItem.From(null!));
+        Assert.Throws<ArgumentNullException>(() => SectionListItem.ForSection(null!));
     }
 
     // ---- KeyListItem ----
@@ -41,13 +41,13 @@ public class ListItemTests
     [Fact]
     public void Key_SingleValue()
     {
-        Assert.Equal(new KeyListItem("Age", "30", "Int"), KeyListItem.From("Age", new LfcValue[] { 30 }));
+        Assert.Equal(new KeyListItem("Age", "30", "Int"), KeyListItem.ForKey("Age", new LfcValue[] { 30 }));
     }
 
     [Fact]
     public void Key_MixedValues_TypesAreListedInOrder()
     {
-        var item = KeyListItem.From("ID", new LfcValue[] { 1, "a", 1.5, true, LfcValue.Null });
+        var item = KeyListItem.ForKey("ID", new LfcValue[] { 1, "a", 1.5, true, LfcValue.Null });
 
         Assert.Equal("1,\"a\",1.5,true,", item.ValueText);
         Assert.Equal("Int, String, Double, Bool, Null", item.TypeText);
@@ -56,14 +56,14 @@ public class ListItemTests
     [Fact]
     public void Key_EmptyValue_IsEmptyTextAndNullType()
     {
-        Assert.Equal(new KeyListItem("Memo", "", "Null"), KeyListItem.From("Memo", new LfcValue[] { LfcValue.Null }));
+        Assert.Equal(new KeyListItem("Memo", "", "Null"), KeyListItem.ForKey("Memo", new LfcValue[] { LfcValue.Null }));
     }
 
     [Fact]
     public void Key_NullArguments_Throw()
     {
-        Assert.Equal("key", Assert.Throws<ArgumentNullException>(() => KeyListItem.From(null!, new LfcValue[] { 1 })).ParamName);
-        Assert.Equal("values", Assert.Throws<ArgumentNullException>(() => KeyListItem.From("K", null!)).ParamName);
+        Assert.Equal("key", Assert.Throws<ArgumentNullException>(() => KeyListItem.ForKey(null!, new LfcValue[] { 1 })).ParamName);
+        Assert.Equal("values", Assert.Throws<ArgumentNullException>(() => KeyListItem.ForKey("K", null!)).ParamName);
     }
 
     // ---- DiagnosticListItem ----
@@ -73,7 +73,7 @@ public class ListItemTests
     [InlineData(LfcDiagnosticSeverity.Error, "エラー")]
     public void Diagnostic_SeverityIsShownInJapanese(LfcDiagnosticSeverity severity, string expected)
     {
-        var item = DiagnosticListItem.From(new LfcDiagnostic(severity, 7, "メッセージ"));
+        var item = DiagnosticListItem.ForDiagnostic(new LfcDiagnostic(severity, 7, "メッセージ"));
 
         Assert.Equal(new DiagnosticListItem(expected, 7, "メッセージ"), item);
     }
@@ -81,6 +81,6 @@ public class ListItemTests
     [Fact]
     public void Diagnostic_Null_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => DiagnosticListItem.From(null!));
+        Assert.Throws<ArgumentNullException>(() => DiagnosticListItem.ForDiagnostic(null!));
     }
 }

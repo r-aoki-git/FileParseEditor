@@ -1,5 +1,5 @@
 @startuml FileParseEditor_Activity_ParseValue
-title 値の入力の解釈（LfcValueNotation.Parse）
+title 値の入力の解釈（LfcValueNotation.ParseNotation）
 
 start
 :入力された表記;

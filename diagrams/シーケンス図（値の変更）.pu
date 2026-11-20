@@ -11,10 +11,10 @@ participant "EditHistory" as History
 participant "LfcDocument\n(FileParserLib)" as Doc
 
 User -> View : 値を入力して「確定」
-View -> VM : ApplyValueCommand.Execute()
+View -> VM : ApplyEditingValueCommand.Execute()
 activate VM
 
-VM -> Notation : Parse(EditingValueText)
+VM -> Notation : ParseNotation(EditingValueText)
 activate Notation
 Notation -> Doc : Parse("K = " + 入力, ThrowOnError = false)
 Doc --> Notation : 作業用の文書（Diagnostics を含む）
@@ -29,14 +29,14 @@ alt 入力エラー
     VM -> Msg : ShowError(M06〜M08)
 else 成功・警告付き
     opt 警告付き
-        VM -> Msg : Confirm(M05)
+        VM -> Msg : ConfirmYesNo(M05)
         Msg --> VM : true（はい。「いいえ」なら終了）
     end
     VM -> Session : SetValue(section, key, values)
     activate Session
     Session -> Doc : ToText()
     Doc --> Session : 変更前のテキスト
-    Session -> History : Push(変更前のテキスト)
+    Session -> History : AddTextBeforeEdit(変更前のテキスト)
     Session -> Doc : Set(section, key, values)
     Session -> Doc : ToText()
     Doc --> Session : 変更後のテキスト

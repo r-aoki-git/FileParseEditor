@@ -8,7 +8,7 @@ public interface IInputDialogService
     /// <summary>セクションの追加ダイアログを表示する。</summary>
     /// <param name="initialName">入力欄の初期値（入力に問題があって再表示する場合は、前回の入力）。</param>
     /// <returns>入力されたセクション名。キャンセルされた場合は null。</returns>
-    string? AskSectionName(string initialName);
+    string? AskNewSectionName(string initialName);
 
     /// <summary>キーの追加ダイアログを表示する。</summary>
     /// <param name="sectionDisplayName">追加先のセクションの表示名。</param>

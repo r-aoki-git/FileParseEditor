@@ -5,7 +5,7 @@ using FileParseEditor.Tests.Helpers;
 namespace FileParseEditor.Tests.ViewModels;
 
 /// <summary>MainViewModel：編集・元に戻す・コマンドの実行できる条件のテスト（基本設計書 3-3、3-4-3、6-3〜6-7、6-9）。</summary>
-public class MainViewModelEditTests : IDisposable
+public class MainViewModelEditTests : IAsyncLifetime
 {
     private const string Content = "[Profile]\n# 名前\nName = \"田代\"\nAge = 30\nMemo =\n\n[Section]\nList = 10,20\n";
 
@@ -14,28 +14,37 @@ public class MainViewModelEditTests : IDisposable
     private readonly FakeMessageService _messages = new();
     private readonly FakeInputDialogService _inputDialog = new();
     private readonly MainViewModel _viewModel;
-    private readonly string _openedPreview;
+    private string _openedPreview = "";
 
     public MainViewModelEditTests()
     {
         _viewModel = new MainViewModel(_fileDialog, _messages, _inputDialog);
-        _viewModel.OpenDroppedFiles(new[] { _dir.WriteText("a.lfc", Content) });
+    }
+
+    // ファイルを開く処理は非同期のため、各テストの前に IAsyncLifetime で開く
+    public async Task InitializeAsync()
+    {
+        await _viewModel.OpenDroppedFilesAsync(new[] { _dir.WriteText("a.lfc", Content) });
         _openedPreview = _viewModel.PreviewText;
     }
 
-    public void Dispose() => _dir.Dispose();
+    public Task DisposeAsync()
+    {
+        _dir.Dispose();
+        return Task.CompletedTask;
+    }
 
     // ---- コマンドの実行できる条件（基本設計書 3-3） ----
 
     [Fact]
     public void Commands_AfterOpen_GlobalSectionNotInFileSelected()
     {
-        Assert.False(_viewModel.UndoCommand.CanExecute(null));
+        Assert.False(_viewModel.UndoEditCommand.CanExecute(null));
         Assert.True(_viewModel.AddSectionCommand.CanExecute(null));
-        Assert.False(_viewModel.RemoveSectionCommand.CanExecute(null));   // グローバルセクションはファイルにない
+        Assert.False(_viewModel.RemoveSelectedSectionCommand.CanExecute(null));   // グローバルセクションはファイルにない
         Assert.True(_viewModel.AddKeyCommand.CanExecute(null));           // グローバルセクションにも追加できる
-        Assert.False(_viewModel.RemoveKeyCommand.CanExecute(null));
-        Assert.False(_viewModel.ApplyValueCommand.CanExecute(null));
+        Assert.False(_viewModel.RemoveSelectedKeyCommand.CanExecute(null));
+        Assert.False(_viewModel.ApplyEditingValueCommand.CanExecute(null));
         Assert.False(_viewModel.IsKeySelected);
     }
 
@@ -43,16 +52,16 @@ public class MainViewModelEditTests : IDisposable
     public void Commands_FollowSelection()
     {
         SelectSection("Profile");
-        Assert.True(_viewModel.RemoveSectionCommand.CanExecute(null));
-        Assert.False(_viewModel.RemoveKeyCommand.CanExecute(null));
+        Assert.True(_viewModel.RemoveSelectedSectionCommand.CanExecute(null));
+        Assert.False(_viewModel.RemoveSelectedKeyCommand.CanExecute(null));
 
         SelectKey("Name");
-        Assert.True(_viewModel.RemoveKeyCommand.CanExecute(null));
-        Assert.True(_viewModel.ApplyValueCommand.CanExecute(null));
+        Assert.True(_viewModel.RemoveSelectedKeyCommand.CanExecute(null));
+        Assert.True(_viewModel.ApplyEditingValueCommand.CanExecute(null));
         Assert.True(_viewModel.IsKeySelected);
 
         _viewModel.SelectedKey = null;
-        Assert.False(_viewModel.RemoveKeyCommand.CanExecute(null));
+        Assert.False(_viewModel.RemoveSelectedKeyCommand.CanExecute(null));
         Assert.False(_viewModel.IsKeySelected);
     }
 
@@ -60,7 +69,7 @@ public class MainViewModelEditTests : IDisposable
     public void Commands_NotifyWhenSelectionChanges()
     {
         var notified = 0;
-        _viewModel.RemoveKeyCommand.CanExecuteChanged += (_, _) => notified++;
+        _viewModel.RemoveSelectedKeyCommand.CanExecuteChanged += (_, _) => notified++;
         SelectSection("Profile");
         notified = 0;
 
@@ -73,10 +82,10 @@ public class MainViewModelEditTests : IDisposable
     public void Commands_NotExecutable_DoNothing()
     {
         // ショートカットキーなどで呼ばれても、実行できない状態では何もしない
-        _viewModel.RemoveKeyCommand.Execute(null);
-        _viewModel.ApplyValueCommand.Execute(null);
-        _viewModel.UndoCommand.Execute(null);
-        _viewModel.RemoveSectionCommand.Execute(null);
+        _viewModel.RemoveSelectedKeyCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
+        _viewModel.RemoveSelectedSectionCommand.Execute(null);
 
         AssertUnchanged();
         Assert.Empty(_messages.Errors);
@@ -131,14 +140,14 @@ public class MainViewModelEditTests : IDisposable
         SelectKey("Name");
         _viewModel.EditingValueText = "\"青木\", 1";
 
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
         Assert.Equal(new[] { "Name", "Age", "Memo" }, _viewModel.Keys.Select(k => k.Key));
         Assert.Equal(new KeyListItem("Name", "\"青木\",1", "String, Int"), _viewModel.SelectedKey);
         Assert.Equal("\"青木\",1", _viewModel.EditingValueText);   // 正規化後の表記
         Assert.Contains("# 名前\nName = \"青木\",1\n", _viewModel.PreviewText);
         Assert.Equal("FileParseEditor - a.lfc *", _viewModel.Title);
-        Assert.True(_viewModel.UndoCommand.CanExecute(null));
+        Assert.True(_viewModel.UndoEditCommand.CanExecute(null));
         Assert.Empty(_messages.Errors);
     }
 
@@ -149,7 +158,7 @@ public class MainViewModelEditTests : IDisposable
         SelectKey("Age");
         _viewModel.EditingValueText = "";
 
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
         Assert.Equal(new KeyListItem("Age", "", "Null"), _viewModel.SelectedKey);
         Assert.Contains("Age =\n", _viewModel.PreviewText);
@@ -162,10 +171,10 @@ public class MainViewModelEditTests : IDisposable
         SelectKey("Age");
         _viewModel.EditingValueText = "030";   // Int(30) と同じ値
 
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
         Assert.Equal("30", _viewModel.EditingValueText);
-        Assert.False(_viewModel.UndoCommand.CanExecute(null));   // 元に戻す履歴にも残さない
+        Assert.False(_viewModel.UndoEditCommand.CanExecute(null));   // 元に戻す履歴にも残さない
         AssertUnchanged();
     }
 
@@ -177,7 +186,7 @@ public class MainViewModelEditTests : IDisposable
         _viewModel.EditingValueText = "Auto";
         _messages.ConfirmAnswers.Enqueue(true);
 
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
         Assert.Equal(
             new[] { "入力した値には次の注意点があります。\nクォートなしの文字列です: Auto\n\n次のように解釈します。\n\"Auto\"\n\nこのまま確定しますか？" },
@@ -194,7 +203,7 @@ public class MainViewModelEditTests : IDisposable
         _viewModel.EditingValueText = "Auto";
         _messages.ConfirmAnswers.Enqueue(false);
 
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
         Assert.Single(_messages.Confirmations);
         Assert.Equal("Auto", _viewModel.EditingValueText);
@@ -211,7 +220,7 @@ public class MainViewModelEditTests : IDisposable
         SelectKey("Age");
         _viewModel.EditingValueText = input;
 
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
         Assert.Equal(new[] { expectedMessage }, _messages.Errors);
         Assert.Empty(_messages.Confirmations);
@@ -259,7 +268,7 @@ public class MainViewModelEditTests : IDisposable
         Assert.Equal(new[] { new KeyListItem("Version", "1", "Int") }, _viewModel.Keys);
         Assert.StartsWith("Version = 1\n", _viewModel.PreviewText);
         Assert.Contains("セクション 3件", _viewModel.StatusText);
-        Assert.True(_viewModel.RemoveSectionCommand.CanExecute(null));   // グローバルセクションが文書にできた
+        Assert.True(_viewModel.RemoveSelectedSectionCommand.CanExecute(null));   // グローバルセクションが文書にできた
     }
 
     [Fact]
@@ -303,7 +312,7 @@ public class MainViewModelEditTests : IDisposable
         // .NET が付ける「 (Parameter 'key')」は表示しない
         Assert.Equal(new[] { expectedMessage }, _messages.Errors);
         Assert.Equal(2, _inputDialog.NewKeyRequests.Count);
-        Assert.False(_viewModel.UndoCommand.CanExecute(null));   // 失敗した操作は履歴に残らない
+        Assert.False(_viewModel.UndoEditCommand.CanExecute(null));   // 失敗した操作は履歴に残らない
         AssertUnchanged();
     }
 
@@ -357,7 +366,7 @@ public class MainViewModelEditTests : IDisposable
         SelectSection("Profile");
         SelectKey("Name");
 
-        _viewModel.RemoveKeyCommand.Execute(null);
+        _viewModel.RemoveSelectedKeyCommand.Execute(null);
 
         Assert.Empty(_messages.Confirmations);
         Assert.Equal(new[] { "Age", "Memo" }, _viewModel.Keys.Select(k => k.Key));
@@ -373,7 +382,7 @@ public class MainViewModelEditTests : IDisposable
         SelectSection("Profile");
         SelectKey("Memo");
 
-        _viewModel.RemoveKeyCommand.Execute(null);
+        _viewModel.RemoveSelectedKeyCommand.Execute(null);
 
         Assert.Equal("Age", _viewModel.SelectedKey?.Key);
     }
@@ -384,12 +393,12 @@ public class MainViewModelEditTests : IDisposable
         SelectSection("Section");
         SelectKey("List");
 
-        _viewModel.RemoveKeyCommand.Execute(null);
+        _viewModel.RemoveSelectedKeyCommand.Execute(null);
 
         Assert.Empty(_viewModel.Keys);
         Assert.Null(_viewModel.SelectedKey);
-        Assert.False(_viewModel.RemoveKeyCommand.CanExecute(null));
-        Assert.True(_viewModel.RemoveSectionCommand.CanExecute(null));   // キーがなくてもセクションは残る
+        Assert.False(_viewModel.RemoveSelectedKeyCommand.CanExecute(null));
+        Assert.True(_viewModel.RemoveSelectedSectionCommand.CanExecute(null));   // キーがなくてもセクションは残る
     }
 
     // ---- セクションの追加（基本設計書 6-6） ----
@@ -463,7 +472,7 @@ public class MainViewModelEditTests : IDisposable
         SelectSection("Profile");
         _messages.ConfirmAnswers.Enqueue(true);
 
-        _viewModel.RemoveSectionCommand.Execute(null);
+        _viewModel.RemoveSelectedSectionCommand.Execute(null);
 
         Assert.Equal(new[] { "セクション [Profile] と、含まれるキー 3 件を削除しますか？" }, _messages.Confirmations);
         Assert.Equal(new[] { "（グローバル）", "[Section]" }, _viewModel.Sections.Select(s => s.DisplayName));
@@ -477,7 +486,7 @@ public class MainViewModelEditTests : IDisposable
         SelectSection("Profile");
         _messages.ConfirmAnswers.Enqueue(false);
 
-        _viewModel.RemoveSectionCommand.Execute(null);
+        _viewModel.RemoveSelectedSectionCommand.Execute(null);
 
         Assert.Equal("Profile", _viewModel.SelectedSection?.Name);
         AssertUnchanged();
@@ -490,13 +499,13 @@ public class MainViewModelEditTests : IDisposable
         _viewModel.AddKeyCommand.Execute(null);
         _messages.ConfirmAnswers.Enqueue(true);
 
-        _viewModel.RemoveSectionCommand.Execute(null);
+        _viewModel.RemoveSelectedSectionCommand.Execute(null);
 
         Assert.Equal("セクション （グローバル） と、含まれるキー 1 件を削除しますか？", _messages.Confirmations[0]);
         Assert.Equal("（グローバル）", _viewModel.Sections[0].DisplayName);
         Assert.Same(_viewModel.Sections[0], _viewModel.SelectedSection);
         Assert.Empty(_viewModel.Keys);
-        Assert.False(_viewModel.RemoveSectionCommand.CanExecute(null));
+        Assert.False(_viewModel.RemoveSelectedSectionCommand.CanExecute(null));
     }
 
     // ---- 元に戻す（基本設計書 6-9） ----
@@ -506,9 +515,9 @@ public class MainViewModelEditTests : IDisposable
     {
         SelectSection("Profile");
         SelectKey("Name");
-        _viewModel.RemoveKeyCommand.Execute(null);
+        _viewModel.RemoveSelectedKeyCommand.Execute(null);
 
-        _viewModel.UndoCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
 
         Assert.Equal(new[] { "Name", "Age", "Memo" }, _viewModel.Keys.Select(k => k.Key));
         Assert.Equal("Profile", _viewModel.SelectedSection?.Name);
@@ -521,9 +530,9 @@ public class MainViewModelEditTests : IDisposable
     {
         SelectSection("Profile");
         _messages.ConfirmAnswers.Enqueue(true);
-        _viewModel.RemoveSectionCommand.Execute(null);
+        _viewModel.RemoveSelectedSectionCommand.Execute(null);
 
-        _viewModel.UndoCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
 
         Assert.Equal(new[] { "（グローバル）", "[Profile]", "[Section]" }, _viewModel.Sections.Select(s => s.DisplayName));
         Assert.Same(_viewModel.Sections[0], _viewModel.SelectedSection);   // 削除後に選択していたのはグローバル
@@ -536,7 +545,7 @@ public class MainViewModelEditTests : IDisposable
         _inputDialog.SectionNameAnswers.Enqueue("New");
         _viewModel.AddSectionCommand.Execute(null);
 
-        _viewModel.UndoCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
 
         Assert.Same(_viewModel.Sections[0], _viewModel.SelectedSection);   // 選択していた [New] はなくなった
         AssertUnchanged();
@@ -548,46 +557,46 @@ public class MainViewModelEditTests : IDisposable
         SelectSection("Profile");
         SelectKey("Age");
         _viewModel.EditingValueText = "31";
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
         _inputDialog.NewKeyAnswers.Enqueue(new NewKeyInput("Email", "\"a\""));
         _viewModel.AddKeyCommand.Execute(null);
 
-        _viewModel.UndoCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
         Assert.Equal(new[] { "Name", "Age", "Memo" }, _viewModel.Keys.Select(k => k.Key));
         Assert.EndsWith(" *", _viewModel.Title);
 
-        _viewModel.UndoCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
         Assert.Equal("FileParseEditor - a.lfc", _viewModel.Title);   // 開いた時点と同じ内容に戻れば「変更あり」を解除する
-        Assert.False(_viewModel.UndoCommand.CanExecute(null));
+        Assert.False(_viewModel.UndoEditCommand.CanExecute(null));
         AssertUnchanged();
     }
 
     [Fact]
-    public void Undo_KeepsDiagnosticsOfOpenedFile()
+    public async Task Undo_KeepsDiagnosticsOfOpenedFile()
     {
-        _viewModel.OpenDroppedFiles(new[] { _dir.WriteText("errors.lfc", "[A]\nK = 1\nK = 2\nMode = Auto\n") });
+        await _viewModel.OpenDroppedFilesAsync(new[] { _dir.WriteText("errors.lfc", "[A]\nK = 1\nK = 2\nMode = Auto\n") });
         SelectSection("A");
         SelectKey("K");
         _viewModel.EditingValueText = "3";
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
-        _viewModel.UndoCommand.Execute(null);
+        _viewModel.UndoEditCommand.Execute(null);
 
         Assert.Equal(new[] { ("エラー", 3), ("警告", 4) }, _viewModel.Diagnostics.Select(d => (d.SeverityText, d.Line)));
         Assert.Contains("警告 1件    エラー 1件", _viewModel.StatusText);
     }
 
     [Fact]
-    public void Open_ClearsUndoHistory()
+    public async Task Open_ClearsUndoHistory()
     {
         SelectSection("Profile");
         SelectKey("Age");
         _viewModel.EditingValueText = "31";
-        _viewModel.ApplyValueCommand.Execute(null);
+        _viewModel.ApplyEditingValueCommand.Execute(null);
 
-        _viewModel.OpenDroppedFiles(new[] { _dir.WriteText("b.lfc", "K = 1\n") });
+        await _viewModel.OpenDroppedFilesAsync(new[] { _dir.WriteText("b.lfc", "K = 1\n") });
 
-        Assert.False(_viewModel.UndoCommand.CanExecute(null));
+        Assert.False(_viewModel.UndoEditCommand.CanExecute(null));
     }
 
     private void SelectSection(string name) =>
