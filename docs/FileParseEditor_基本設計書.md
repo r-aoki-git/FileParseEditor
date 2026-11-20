@@ -175,7 +175,8 @@ FileParserLib.dll
 
 - 起動すると、新規作成と同じ状態（空の文書、「無題」）でメイン画面を表示する
 - コマンドライン引数でのファイル指定（関連付けによる起動）は扱わない
-- メニューの「終了」、ウィンドウの閉じるボタン、Alt+F4 のいずれでも、保存していない変更があれば保存するかを確認する（6-10）。「キャンセル」を選んだ場合は終了しない
+- メニューの「終了」、ウィンドウの閉じるボタン、Alt+F4 のいずれでも、保存していない変更があれば保存するかを確認する（6-10）。「キャンセル」を選んだ場合、「はい」で保存がキャンセル・失敗した場合は終了しない
+- ファイルの読み書き中（7-6）は終了しない（読み書きが終わってから、改めて終了する）
 
 ---
 
@@ -369,6 +370,8 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | | `MessageTexts` | 静的クラス（internal） | メッセージの文言（10章）。画面とテストで同じ文言を使う |
 | | `EditDialogFlow` | クラス（internal） | 入力ダイアログ・確認を伴う編集操作（キーの追加、セクションの追加・削除）の流れ。入力に問題があればダイアログを再表示する |
 | | `ListItemBuilder` | 静的クラス（internal） | 文書の内容から、一覧（セクション・キー・診断情報）の行を作る |
+| | `FileSaveFlow` | クラス（internal） | 保存（上書き保存・名前を付けて保存）と、保存していない変更の確認の流れ（6-8、6-10）。保存先の選択、エラーの行が失われる確認（M03）、保存の失敗（M12）を担う |
+| | `FileAccessErrors` | 静的クラス（internal） | ファイルの読み書きの例外のうち、メッセージを表示して操作を続けられるものの判定（9章）。開く・保存で共通に使う |
 | | `ValueInputChecker` | クラス（internal） | 表記の解釈結果を利用者に示す（入力エラーはメッセージ、警告付きは確認。6-3 の 2・3、6-4 の 3）。値の変更とキーの追加で同じ流れを使うため、`MainViewModel`から分けている |
 | `FileParseEditor.Core.Services` | `IFileDialogService` | インターフェイス | ファイルを開く・保存するダイアログ |
 | | `IMessageService` | インターフェイス | 確認・エラーのメッセージ |
@@ -403,6 +406,7 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `MainViewModel` → `CommandBase`（`RelayCommand`・`AsyncRelayCommand`） | 集約（1 対 1..*） | 3-3 の各操作のコマンド。ファイルの読み書きは`AsyncRelayCommand` |
 | `MainViewModel` → `BulkObservableCollection<T>` | 集約（1 対 3） | セクション・キー・診断情報の一覧。画面には読み取り専用の`ReadOnlyObservableCollection<T>`として公開する |
 | `MainViewModel` → `EditDialogFlow` | 集約（1 対 1） | キーの追加、セクションの追加・削除の流れを任せる |
+| `MainViewModel` → `FileSaveFlow` | 集約（1 対 1） | 保存と、開く・新規作成・終了の前の保存していない変更の確認を任せる。保存中の状態（`IsBusy`）と表示の更新は、`MainViewModel`が渡す処理で行う |
 | `MainViewModel` ⇢ `ListItemBuilder` | 依存（使用） | 一覧の行を作る |
 | `MainViewModel` → `ObservableObject` | 継承 | プロパティの変更を画面に通知する |
 | `DocumentSession` → `LfcDocument` | 集約（1 対 1） | 編集中の文書。元に戻すと別のインスタンスに置き換わる |
@@ -451,18 +455,18 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 | `CreateNewDocumentCommand`、`OpenFileCommand`、`SaveFileCommand`、`SaveFileAsCommand`、`UndoEditCommand`、`AddSectionCommand`、`RemoveSelectedSectionCommand`、`AddKeyCommand`、`RemoveSelectedKeyCommand`、`ApplyEditingValueCommand` | 3-3 の各操作（`ICommand`） |
 | `Task OpenDroppedFilesAsync(IReadOnlyList<string> paths)` | ドラッグ＆ドロップで開く（6-1）。ファイル1つの場合だけ開き、それ以外は M13 を表示する。読み込み中は何もしない |
 | `void ReportUnexpectedError(Exception exception)` | 想定外の例外を M14 で知らせる（9章）。`App`の`DispatcherUnhandledException`から呼び出す |
-| `bool ConfirmCloseWindow()` | 終了してよいか（6-10）。`MainWindow`の`Closing`から呼び出す |
+| `Task<bool> ConfirmCloseWindowAsync()` | 終了してよいか（6-10）。`MainWindow`の`Closing`から呼び出す。読み書き中は`false` |
 
 **`IFileDialogService`／`IMessageService`／`IInputDialogService`**
 
 | メンバー | 内容 |
 |---|---|
 | `string? ShowOpenFileDialog()` | ファイルを開くダイアログ。キャンセルは`null` |
-| `string? ShowSaveFileDialog(string? initialPath)` | ファイルを保存するダイアログ。キャンセルは`null` |
+| `string? ShowSaveFileDialog(string initialPath)` | ファイルを保存するダイアログ。初期値は現在のファイルのパス（新規作成した文書は「無題.lfc」）。キャンセルは`null` |
 | `void ShowError(string message)` | エラーのメッセージ |
 | `void ShowInformation(string message)` | 情報のメッセージ |
 | `bool ConfirmYesNo(string message)` | はい／いいえの確認。「はい」で`true` |
-| `SaveChangesChoice AskSaveChanges(string fileName)` | はい／いいえ／キャンセルの確認（M01） |
+| `SaveChangesChoice AskSaveChanges(string message)` | はい／いいえ／キャンセルの確認（M01。文言は`MessageTexts`で作る） |
 | `string? AskNewSectionName(string initialName)` | セクションの追加ダイアログ。キャンセルは`null` |
 | `NewKeyInput? AskNewKey(string sectionDisplayName, NewKeyInput initialInput)` | キーの追加ダイアログ。キャンセルは`null` |
 
@@ -541,9 +545,9 @@ FileParseEditor.Tests ──参照──▶ FileParseEditor.Core
 
 ### 8-5. 終了（F8）
 
-1. 利用者がウィンドウの閉じるボタンを押す。`MainWindow`の`Closing`イベントで、`MainViewModel.ConfirmCloseWindow`を呼び出す
-2. `MainViewModel`は、変更があれば M01 で確認する（6-10）
-3. `ConfirmCloseWindow`が`false`を返した場合、`MainWindow`は`Closing`をキャンセルし、終了しない
+1. 利用者がウィンドウの閉じるボタンを押す。`MainWindow`の`Closing`イベントで、いったん閉じるのを取り消し（確認と保存は非同期のため）、`MainViewModel.ConfirmCloseWindowAsync`の完了を待つ
+2. `MainViewModel`は、読み書き中なら`false`を返す。そうでなければ、変更があれば M01 で確認し（6-10）、「はい」なら上書き保存する
+3. `ConfirmCloseWindowAsync`が`true`を返した場合、`MainWindow`は改めて閉じる（このときは確認しない）。`false`の場合は終了しない
 
 ---
 

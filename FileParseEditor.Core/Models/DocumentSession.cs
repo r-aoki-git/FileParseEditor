@@ -13,8 +13,15 @@ internal sealed class DocumentSession
 
     private readonly EditHistory _history = new();
 
-    // 開いた・新規作成した時点の ToText() の結果。「変更あり」の判定に使う（基本設計書 6-11）
+    // パスを比べるときの規則。Windows のファイルシステムは大文字・小文字を区別しないため、それに合わせる
+    private static readonly StringComparison PathComparison =
+        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+
+    // 開いた・新規作成した・保存した時点の ToText() の結果。「変更あり」の判定に使う（基本設計書 6-11）
     private string _savedText;
+
+    // Error を含む状態で開き、まだ上書き保存していないファイルの絶対パス。それ以外は null（基本設計書 6-8）
+    private string? _fileWithUnsavedErrorLines;
 
     /// <summary>空の文書（新規作成と同じ状態）で始める。</summary>
     internal DocumentSession()
@@ -62,6 +69,50 @@ internal sealed class DocumentSession
             return (Document: document, FullPath: Path.GetFullPath(path), Text: document.ToText());
         });
         ReplaceDocument(loaded.Document, loaded.FullPath, loaded.Document.Diagnostics, loaded.Text);
+
+        // エラーの行は読み込まれていないため、このファイルに上書きするとエラーの行が失われる（要件定義書 4-3）
+        _fileWithUnsavedErrorLines = HasErrors(loaded.Document.Diagnostics) ? loaded.FullPath : null;
+    }
+
+    /// <summary>
+    /// 文書をファイルに保存する（基本設計書 6-8）。文字コード・改行コードはライブラリの仕様（UTF-8 BOMなし、LF）による。
+    /// 大きな文書でも画面が止まらないよう、書き込みは別のスレッドで行う（基本設計書 7-6）。
+    /// 保存すると、保存先を <see cref="FilePath"/> とし、「変更あり」を解除する。元に戻す履歴と診断情報は変えない。
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> が null。</exception>
+    /// <remarks>
+    /// 書き込みに失敗した場合（フォルダがない、アクセス権がない等）は、ライブラリの例外がそのまま伝わり、現在の状態は変わらない。
+    /// 書き込み中は文書を変更しないこと（呼び出し元は、保存中に編集できないようにする）。
+    /// </remarks>
+    internal async Task SaveFileAsync(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+
+        var document = Document;
+        var text = CurrentText;
+        var fullPath = await Task.Run(() =>
+        {
+            document.Save(path);
+            return Path.GetFullPath(path);
+        });
+
+        FilePath = fullPath;
+        _savedText = text;
+        if (_fileWithUnsavedErrorLines is not null && IsSamePath(fullPath, _fileWithUnsavedErrorLines))
+        {
+            // 上書きしたことで、元のファイルからエラーの行はすでに失われている。以降は確認しない
+            _fileWithUnsavedErrorLines = null;
+        }
+    }
+
+    /// <summary>
+    /// 保存先 <paramref name="path"/> に保存すると、エラーを含む状態で開いた元のファイルからエラーの行が失われるか（基本設計書 6-8、M03）。
+    /// エラーを含むファイルを開いた後、まだそのファイルに上書き保存していない場合に true。
+    /// </summary>
+    internal bool NeedsErrorLossConfirmation(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        return _fileWithUnsavedErrorLines is not null && IsSamePath(Path.GetFullPath(path), _fileWithUnsavedErrorLines);
     }
 
     /// <summary>空の文書を作る（基本設計書 6-2）。</summary>
@@ -200,8 +251,23 @@ internal sealed class DocumentSession
         LoadDiagnostics = diagnostics;
         CurrentText = text;
         _savedText = text;
+        _fileWithUnsavedErrorLines = null;
         _history.ClearAll();
     }
+
+    private static bool HasErrors(IReadOnlyList<LfcDiagnostic> diagnostics)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            if (diagnostic.Severity == LfcDiagnosticSeverity.Error)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsSamePath(string fullPath1, string fullPath2) => string.Equals(fullPath1, fullPath2, PathComparison);
 
     private static LfcValue[] CopyToArray(IReadOnlyList<LfcValue> values)
     {

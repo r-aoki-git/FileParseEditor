@@ -5,9 +5,18 @@ namespace FileParseEditor.Core.ViewModels;
 /// </summary>
 internal static class MessageTexts
 {
+    /// <summary>M01：保存していない変更がある状態で、開く・新規作成・終了するとき。</summary>
+    internal static string ConfirmSaveChanges(string fileName) => $"{fileName} への変更を保存しますか？";
+
     /// <summary>M02：エラーを含むファイルを開いたとき。</summary>
     internal static string FileHasErrors(int errorCount) =>
         $"ファイルにエラーが {errorCount} 件あります。エラーの行は読み込んでいません。詳しくは診断情報の一覧を確認してください。";
+
+    /// <summary>
+    /// M03：エラーを含む状態で開いたファイルに上書きするとき。
+    /// </summary>
+    internal const string ConfirmErrorLinesLoss =
+        "このファイルはエラーの行を読み込まずに開いています。上書きすると、元のファイルからエラーの行が失われます。保存しますか？";
 
     /// <summary>M04：セクションを削除するとき。</summary>
     internal static string ConfirmRemoveSection(string sectionDisplayName, int keyCount) =>
@@ -44,6 +53,10 @@ internal static class MessageTexts
     /// <summary>M11：ファイルの読み込みに失敗したとき。</summary>
     internal static string OpenFailed(string path, string detail) =>
         $"ファイルを開けませんでした。\n{path}\n{detail}";
+
+    /// <summary>M12：ファイルの保存に失敗したとき。</summary>
+    internal static string SaveFailed(string path, string detail) =>
+        $"ファイルを保存できませんでした。\n{path}\n{detail}";
 
     /// <summary>M13：複数のファイル・フォルダをドロップしたとき。</summary>
     internal const string DropOneFileOnly = "開けるのはファイル1つだけです。";
