@@ -1,3 +1,4 @@
+using System.IO;
 using FileParseEditor.Core.Services;
 using Microsoft.Win32;
 
@@ -17,6 +18,27 @@ public sealed class FileDialogService : IFileDialogService
             Title = "開く",
             Filter = Filter,
         };
+        return dialog.ShowDialog() == true ? dialog.FileName : null;
+    }
+
+    public string? ShowSaveFileDialog(string initialPath)
+    {
+        // 既存のファイルを選んだ場合の上書きの確認は、ダイアログの標準機能（OverwritePrompt）で行う（基本設計書 6-8）
+        var dialog = new SaveFileDialog
+        {
+            Title = "名前を付けて保存",
+            Filter = Filter,
+            DefaultExt = ".lfc",
+            AddExtension = true,
+            OverwritePrompt = true,
+            FileName = Path.GetFileName(initialPath),
+        };
+
+        var directory = Path.GetDirectoryName(initialPath);
+        if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+        {
+            dialog.InitialDirectory = directory;
+        }
         return dialog.ShowDialog() == true ? dialog.FileName : null;
     }
 }
