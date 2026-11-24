@@ -27,7 +27,9 @@ FileParseEditor.Tests/      単体テスト（xUnit、net8.0）。フォルダ�
 
 lib/                        参照する FileParserLib.dll（どのコミットからビルドしたかは lib/README.md）
 testdata/                   画面操作のテストで使う入力ファイル（testdata/README.md）
-docs/                       要件定義書・基本設計書・スケジュール・作図用 PlantUML・テスト仕様書
+scripts/
+└── Run-UnitTests.ps1         単体テストをカバレッジ付きで実行し、検証ログの「5. 単体テストの結果」を書き換える
+docs/                       要件定義書・基本設計書・スケジュール・作図用 PlantUML・テスト仕様書・テスト実施手順・検証ログ
 diagrams/                   作図用 PlantUML を図ごとに分けたファイル
 ```
 
@@ -71,6 +73,12 @@ diagrams/                   作図用 PlantUML を図ごとに分けたファイ
 ```
 dotnet build
 dotnet test
+```
+
+テストを実施して検証ログを更新する手順は、`docs/FileParseEditor_テスト実施手順.md`を参照する。単体テストの結果を検証ログに書き込む場合（Windows）：
+
+```
+powershell -ExecutionPolicy Bypass -File scripts\Run-UnitTests.ps1 -Executor "実施者の名前"
 ```
 
 - 対象フレームワーク：.NET 8（アプリは`net8.0-windows`、それ以外は`net8.0`）
