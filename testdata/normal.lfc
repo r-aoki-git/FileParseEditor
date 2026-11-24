@@ -1,0 +1,31 @@
+# 機能検証用の正常なファイル（Error・Warning なし）
+Version = 1
+Title = "グローバルセクションの値"
+
+# プロフィール
+[Profile] # セクションの行末コメント
+Name = "田代"
+# 型の混在
+# （2行のコメント）
+ID = 1,"tasiro",2,"tasrri" # 行末コメント
+Age = 30
+Height = 170.5
+Active = true
+Retired = FALSE
+Memo =
+Text = "カンマ, と # は文字列の一部"
+Quote = "He said \"Hi\""
+Path = "C:\\temp"
+Lines = "1行目\n2行目\tタブ"
+
+[Section]
+HasValue = 1,0,0,1.2,3
+ValueList = 10,20,30,40
+Big = 99999999999999
+Exp = 1e3
+Zero = 01
+Plus = +10
+
+# 同名セクション（Profile にマージされる）
+[Profile]
+Hobby = "読書","登山"

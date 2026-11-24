@@ -1,0 +1,11 @@
+[Profile]
+Name = "田代"
+Name = "青木"
+[Broken
+Value = "abc
+Key "no equals"
+Text = "田代" "追加文字列"
+= 1
+[Section]
+OK = 1
+Mode = Auto

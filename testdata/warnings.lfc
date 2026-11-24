@@ -1,0 +1,6 @@
+[Value]
+Mode = Auto
+Mixed = 123abc, 10
+Special = NaN
+Path = "C:\data"
+OK = 1

@@ -26,7 +26,8 @@ FileParseEditor.Tests/      単体テスト（xUnit、net8.0）。フォルダ�
 └── Helpers/                  テスト用の偽のサービス、一時フォルダ
 
 lib/                        参照する FileParserLib.dll（どのコミットからビルドしたかは lib/README.md）
-docs/                       要件定義書・基本設計書・スケジュール・作図用 PlantUML
+testdata/                   画面操作のテストで使う入力ファイル（testdata/README.md）
+docs/                       要件定義書・基本設計書・スケジュール・作図用 PlantUML・テスト仕様書
 diagrams/                   作図用 PlantUML を図ごとに分けたファイル
 ```
 
